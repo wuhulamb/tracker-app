@@ -2,7 +2,6 @@ package com.xu.locationtracker.ui
 
 import android.Manifest
 import android.app.Application
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
@@ -11,7 +10,6 @@ import androidx.lifecycle.viewModelScope
 import com.xu.locationtracker.data.AppGraph
 import com.xu.locationtracker.data.Prefs
 import com.xu.locationtracker.data.TrackerState
-import com.xu.locationtracker.data.TrackPoint
 import com.xu.locationtracker.data.dayKeyOf
 import com.xu.locationtracker.service.TrackingService
 import com.xu.locationtracker.util.Exporter
@@ -132,8 +130,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    suspend fun readDay(day: String): List<TrackPoint> = AppGraph.store.readDay(day)
-
     // ---------- 导出 ----------
 
     fun exportGpx(onResult: (String?) -> Unit) {
@@ -157,7 +153,4 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             onDone()
         }
     }
-
-    @Suppress("unused")
-    fun context(): Context = getApplication()
 }

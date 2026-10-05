@@ -22,9 +22,6 @@ object TrackerState {
     /** 当前显示轨迹对应的日期，null = 今天 */
     val viewDay = MutableStateFlow<String?>(null)
 
-    /** 手动模式暂停状态 */
-    val paused = MutableStateFlow(false)
-
     /** 最近一次从系统收到定位回调的时间戳（0 表示尚未收到） */
     val lastFixAt = MutableStateFlow(0L)
 }
