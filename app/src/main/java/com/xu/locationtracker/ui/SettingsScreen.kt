@@ -49,14 +49,8 @@ fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
     var mode by remember { mutableStateOf(Prefs.mode) }
 
     // 参数本地状态（编辑后写回 Prefs 并通知服务）
-    var accuracy by remember { mutableIntStateOf(Prefs.filterAccuracyM) }
     var quality by remember { mutableStateOf(MotionProfile.qualityOf(Prefs.recordQuality)) }
     var minDist by remember { mutableIntStateOf(Prefs.minDistM) }
-    var staticAfter by remember { mutableIntStateOf(Prefs.staticAfterMin) }
-    var staticInt by remember { mutableIntStateOf(Prefs.staticIntervalSec) }
-    var gpsSilent by remember { mutableIntStateOf(Prefs.gpsSilentAfterMin) }
-    var keepAlive by remember { mutableIntStateOf(Prefs.keepAliveMin) }
-    var showAdvanced by remember { mutableStateOf(false) }
     var mapStyle by remember { mutableStateOf(Prefs.mapStyle) }
 
     Column(
@@ -147,39 +141,6 @@ fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                             Text(q.label, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
-                }
-            }
-
-            // 高级参数：默认折叠，普通使用无需调整
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable { showAdvanced = !showAdvanced }
-                    .padding(vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    if (showAdvanced) "▾ 高级参数" else "▸ 高级参数",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-            if (showAdvanced) {
-                ParamRow("静止判定时间", "分钟", staticAfter, 1..120) {
-                    staticAfter = it; Prefs.staticAfterMin = it; vm.applyParams()
-                }
-                ParamRow("静止采样间隔", "秒", staticInt, 10..600) {
-                    staticInt = it; Prefs.staticIntervalSec = it; vm.applyParams()
-                }
-                ParamRow("GPS 失效进静止", "分钟", gpsSilent, 1..60) {
-                    gpsSilent = it; Prefs.gpsSilentAfterMin = it; vm.applyParams()
-                }
-                ParamRow("在位心跳", "分钟", keepAlive, 0..120) {
-                    keepAlive = it; Prefs.keepAliveMin = it; vm.applyParams()
-                }
-                ParamRow("精度过滤", "米", accuracy, 5..200) {
-                    accuracy = it; Prefs.filterAccuracyM = it; vm.applyParams()
                 }
             }
         }
@@ -295,7 +256,7 @@ private fun ParamRow(
     ) {
         Text(label, style = MaterialTheme.typography.bodyLarge)
         Text(
-            if (value == 0 && unit == "分钟" && label == "在位心跳") "关闭" else "$value $unit",
+            "$value $unit",
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
         )
