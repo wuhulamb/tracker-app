@@ -141,6 +141,14 @@ class TrackingService : Service() {
             stopTracking()
             return
         }
+        // 重复 START（UI 连点 / START_STICKY 重投 / 开机广播与自启叠加）：已在记录且当天已恢复，
+        // 不重跑恢复与订阅，否则会把静止降频重置回高频采样。
+        // 仍刷一次通知：刷新同 id 的通知可满足 startForegroundService 对 startForeground 的超时要求。
+        if (TrackerState.isRecording.value && dayLoaded) {
+            Log.d(TAG, "duplicate start, keep current session (staticMode=$staticMode)")
+            updateNotification()
+            return
+        }
         startForeground(NOTIF_ID, buildNotification("正在启动定位…"))
         TrackerState.isRecording.value = true
         TrackerState.isStatic.value = false

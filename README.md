@@ -104,6 +104,14 @@ flowchart TD
     W -.-> NOTE["补充：静止/行动状态机只由 GPS fix 驱动，network 兜底点不参与<br/>lastGpsFixAt（原始 fix）→ 拦网络兜底；lastGoodGpsAt（可用 fix）→ 管无信号进静止"]
 ```
 
+### 启动顺序（勿改）
+
+服务启动后在一个**主线程协程**里按顺序做两件事：读当天 JSONL 恢复 `points` / `lastSaved` / `lastMovedAt` / `lastGoodGpsAt` → **完成后才** `requestLocationUpdates` 订阅定位（`TrackingService.startTracking`）。
+
+这个顺序不能颠倒：恢复与 `onFix` 写的是同一批状态，而 `StateFlow.value = value + p` 是读-改-写、不原子。先订阅的后果：刚收到的点被磁盘快照整体覆盖（文件里有、UI 与统计一整天都缺这一段）、`lastSaved` 基准回退、`lastMovedAt` 回退到旧时间戳导致当场误判“静止”而降频。
+
+同理，重复 `ACTION_START` 在“已在记录且当天已恢复”时直接返回（只刷一次通知），不重跑恢复与订阅 —— 否则会把静止降频打断、回到高频采样。代价：启动到首次定位推延几十毫秒。
+
 ## 离线地图（可选）
 
 应用默认使用高德在线瓦片。需要离线底图时：
