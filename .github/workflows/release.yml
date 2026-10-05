@@ -21,8 +21,13 @@ jobs:
           java-version: "17"
           cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # ubuntu-latest 自带 Android SDK（ANDROID_HOME/ANDROID_SDK_ROOT 已配置、licenses 已接受），
+      # 不再依赖第三方 setup-android action（其下载 cmdline-tools 可能失败导致 CI 挂掉）。
+      - name: Show Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms" 2>/dev/null || true
+          ls "$ANDROID_HOME/build-tools" 2>/dev/null || true
 
       - name: Decode release keystore
         env:
