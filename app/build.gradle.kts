@@ -20,8 +20,8 @@ android {
         applicationId = "com.xu.locationtracker"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
 
         // 仅打包真机 ABI：去掉模拟器专用的 x86/x86_64（约减 22MB，APK 78% 体积来自 native 库）
         ndk {
