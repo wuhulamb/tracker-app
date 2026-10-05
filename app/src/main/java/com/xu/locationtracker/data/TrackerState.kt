@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
  * points 缓存当天已保存的点；服务每秒最多追加几次，全天约几千个点，开销可忽略。
  */
 object TrackerState {
-    /** 当前是否在记录（服务存活且未暂停） */
+    /** 当前是否在记录（服务存活且未停止） */
     val isRecording = MutableStateFlow(false)
 
     /** 是否处于静止降频 */

@@ -53,7 +53,6 @@ class TrackingService : Service() {
         private const val NOTIF_ID = 1
         const val ACTION_START = "com.xu.locationtracker.action.START"
         const val ACTION_STOP = "com.xu.locationtracker.action.STOP"
-        const val ACTION_PAUSE = "com.xu.locationtracker.action.PAUSE"
         const val ACTION_BOOT = "com.xu.locationtracker.action.BOOT"
         const val ACTION_REFRESH = "com.xu.locationtracker.action.REFRESH"
 
@@ -105,10 +104,6 @@ class TrackingService : Service() {
                 val today = dayKeyOf(System.currentTimeMillis())
                 if (Prefs.mode == Prefs.MODE_AUTO) Prefs.autoStoppedForDay = today
                 else Prefs.manualRecording = false
-                stopTracking()
-                return START_NOT_STICKY
-            }
-            ACTION_PAUSE -> {
                 stopTracking()
                 return START_NOT_STICKY
             }

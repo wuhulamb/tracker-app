@@ -78,7 +78,7 @@ fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                     mode = Prefs.MODE_MANUAL
                     vm.setMode(Prefs.MODE_MANUAL)
                 })
-                Text("手动开始/暂停")
+                Text("手动开始/停止")
             }
         }
 

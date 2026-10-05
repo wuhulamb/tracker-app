@@ -82,11 +82,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         TrackingService.start(getApplication(), TrackingService.ACTION_START)
     }
 
-    /** 手动模式暂停（保留已记录点，可恢复） */
-    fun pauseManual() {
-        TrackingService.start(getApplication(), TrackingService.ACTION_PAUSE)
-    }
-
     /** 手动模式停止 */
     fun stopManual() {
         Prefs.manualRecording = false

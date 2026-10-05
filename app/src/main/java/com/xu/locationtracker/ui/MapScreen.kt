@@ -302,21 +302,17 @@ fun MapScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                 // 今日模式：记录操作按钮相对全屏居中（与底部"历史"Tab 同一竖向），定位圆钮在右端
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     if (Prefs.mode == Prefs.MODE_MANUAL) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            if (!manualRec.value) {
-                                Button(onClick = {
-                                    manualRec.value = true
-                                    vm.startManual()
-                                }) { Text("开始记录") }
-                            } else if (isRecording) {
-                                OutlinedButton(onClick = { vm.pauseManual() }) { Text("暂停") }
-                                OutlinedButton(onClick = {
-                                    manualRec.value = false
-                                    vm.stopManual()
-                                }) { Text("停止") }
-                            } else {
-                                Button(onClick = { vm.startManual() }) { Text("继续记录") }
-                            }
+                        // 手动模式：开始记录 / 停止记录（无暂停）
+                        if (isRecording) {
+                            OutlinedButton(onClick = {
+                                manualRec.value = false
+                                vm.stopManual()
+                            }) { Text("停止记录") }
+                        } else {
+                            Button(onClick = {
+                                if (!manualRec.value) manualRec.value = true
+                                vm.startManual()
+                            }) { Text("开始记录") }
                         }
                     } else {
                         val stoppedToday = Prefs.autoStoppedForDay ==
