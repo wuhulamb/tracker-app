@@ -151,11 +151,6 @@ fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                 }) { Text("导出 CSV") }
             }
             Spacer(Modifier.height(6.dp))
-            Text(
-                "轨迹文件：/sdcard/Android/data/${context.packageName}/files/tracks/",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline,
-            )
             Button(
                 onClick = { confirmDelete = true },
                 modifier = Modifier.padding(top = 4.dp),
