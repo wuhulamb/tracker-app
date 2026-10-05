@@ -193,15 +193,10 @@ fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
                     )
                 }
-            }) { Text("应用权限 / 自启动设置") }
+            }) { Text("应用权限设置") }
             Spacer(Modifier.height(4.dp))
             Text(
-                "华为需在「启动管理器」允许自启动与关联启动，否则可能无法后台记录。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline,
-            )
-            Text(
-                "提醒：在最近任务里「上滑关闭」会彻底停止记录（系统限制），请改用返回桌面或息屏。",
+                "提醒：在最近任务里上滑关闭应用会彻底停止记录，请改用返回桌面或息屏。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline,
             )
