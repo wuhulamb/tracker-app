@@ -55,6 +55,7 @@ fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
     var staticAfter by remember { mutableIntStateOf(Prefs.staticAfterMin) }
     var staticInt by remember { mutableIntStateOf(Prefs.staticIntervalSec) }
     var keepAlive by remember { mutableIntStateOf(Prefs.keepAliveMin) }
+    var showAdvanced by remember { mutableStateOf(false) }
 
     Column(
         modifier
@@ -83,29 +84,53 @@ fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
 
         // ---------- 记录参数 ----------
         SectionCard("记录参数") {
-            ParamRow("常规采样间隔", "秒", fastInt, 3..600) {
-                fastInt = it; Prefs.fastIntervalSec = it; vm.applyParams()
-            }
+            // 主参数：轨迹密度 + 采样频率（用户最常调的两项）
             ParamRow("记录触发位移", "米", minDist, 3..200) {
                 minDist = it; Prefs.minDistM = it; vm.applyParams()
             }
-            ParamRow("静止判定时间", "分钟", staticAfter, 1..120) {
-                staticAfter = it; Prefs.staticAfterMin = it; vm.applyParams()
-            }
-            ParamRow("静止采样间隔", "秒", staticInt, 10..600) {
-                staticInt = it; Prefs.staticIntervalSec = it; vm.applyParams()
-            }
-            ParamRow("在位心跳", "分钟", keepAlive, 0..120) {
-                keepAlive = it; Prefs.keepAliveMin = it; vm.applyParams()
-            }
-            ParamRow("精度过滤", "米", accuracy, 5..200) {
-                accuracy = it; Prefs.filterAccuracyM = it; vm.applyParams()
+            ParamRow("采样间隔", "秒", fastInt, 3..600) {
+                fastInt = it; Prefs.fastIntervalSec = it; vm.applyParams()
             }
             Text(
-                "静止时自动降频省电，移动立即恢复；小于触发位移的 GPS 抖动不会记录；心跳保证静止时每 N 分钟留一个点（0=关闭）。",
+                "位移阈值 = 轨迹密度（越小越精细）；采样间隔 = 定位频率与耗电。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline,
             )
+
+            // 高级参数：默认折叠，普通使用无需调整
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { showAdvanced = !showAdvanced }
+                    .padding(vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    if (showAdvanced) "▾ 高级参数" else "▸ 高级参数",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            if (showAdvanced) {
+                ParamRow("静止判定时间", "分钟", staticAfter, 1..120) {
+                    staticAfter = it; Prefs.staticAfterMin = it; vm.applyParams()
+                }
+                ParamRow("静止采样间隔", "秒", staticInt, 10..600) {
+                    staticInt = it; Prefs.staticIntervalSec = it; vm.applyParams()
+                }
+                ParamRow("在位心跳", "分钟", keepAlive, 0..120) {
+                    keepAlive = it; Prefs.keepAliveMin = it; vm.applyParams()
+                }
+                ParamRow("精度过滤", "米", accuracy, 5..200) {
+                    accuracy = it; Prefs.filterAccuracyM = it; vm.applyParams()
+                }
+                Text(
+                    "静止时自动降频省电（判定时长/静止采样间隔）；心跳保证静止时每 N 分钟留一个点（0=关闭）；精度过滤丢弃 acc 超标的定位。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+            }
         }
 
         // ---------- 导出 ----------
