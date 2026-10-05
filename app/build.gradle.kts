@@ -56,4 +56,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.maplibre.android)
     testImplementation(libs.junit)
+    // 本地 JVM 单测需要真实 org.json 实现（android.jar 中的是 stub，会抛 "Method not mocked"）
+    testImplementation("org.json:json:20240303")
 }

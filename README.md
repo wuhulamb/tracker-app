@@ -61,7 +61,54 @@ SavePolicyTest   4 tests, 0 failures
 | 离线地图 | `/sdcard/Android/data/com.xu.locationtracker/files/maps/shanghai.mbtiles` |
 | 导出文件 | 系统"下载/行程轨迹/" |
 
-单行格式：`{"t":毫秒时间戳,"lat":纬度,"lon":经度,"acc":精度米,"spd":速度m/s}`
+单行格式：`{"t":毫秒时间戳,"lat":纬度,"lon":经度,"acc":精度米,"spd":速度m/s,"prv":定位来源}`
+
+`prv` 为必填定位来源字段（`gps` / `network`）；解析时缺失 `prv` 的行视为非法数据被丢弃（历史数据已统一补齐该字段）。
+
+定位策略：**GPS 优先，网络兜底**——GPS 正常工作时忽略网络 fix（WiFi 定位误差可达数百米且滞后，混存会污染轨迹）；GPS 连续失效超过 3 分钟后网络 fix 才作为兜底保存。另外，距最后一次"可用 GPS fix"超过 3 分钟自动降频到静止采样间隔（室内/无信号时省电），GPS 恢复可用 fix 后立即拉回常频。
+
+### 定位工作逻辑
+
+```mermaid
+flowchart TD
+    subgraph S1["订阅层：两个源并行，共享同一个 intervalMs"]
+        GPS["GPS_PROVIDER（卫星）<br/>室外几秒一 fix · acc 3~10m · 带速度 spd"]
+        NET["NETWORK_PROVIDER（WiFi/基站）<br/>室内 10~15s 一 fix · acc 30~400m · 无速度"]
+    end
+
+    subgraph S2["全局频率状态 staticMode：两个订阅同步切换"]
+        F1["常频 FAST = 10s（启动默认）"]
+        F2["静止降频 = 60s<br/>GPS fix 正常但移动 &lt;10m 持续 5min"]
+        F3["静默降频 = 60s<br/>无可用 GPS fix 超 3min（每 30s 检测）"]
+        F4["恢复 FAST<br/>移动 ≥10m，或 GPS 可用 fix 出现"]
+    end
+
+    F1 -. 同时控制 .-> GPS
+    F2 -. 同时控制 .-> GPS
+    F3 -. 同时控制 .-> GPS
+    F4 -. 恢复 .-> GPS
+    F1 -. 同时控制 .-> NET
+    F2 -. 同时控制 .-> NET
+    F3 -. 同时控制 .-> NET
+    F4 -. 恢复 .-> NET
+
+    GPS --> ON["onFix(loc)：按 loc.provider（prv）区分来源"]
+    NET --> ON
+
+    ON --> G1{"① GPS 优先闸门<br/>network fix 且 GPS 3min 内有原始 fix？"}
+    G1 -- 是（拦下网络） --> D1["丢弃 · 仅刷新通知"]
+    G1 -- 否 --> G2{"② 精度闸门<br/>acc ≤ filterAccuracy（50m）？"}
+    G2 -- 否 --> D2["丢弃"]
+    G2 -- 是 --> G3{"③ 双源去重<br/>dt &lt;4s 且 位移 &lt;3m？"}
+    G3 -- 是 --> D3["丢弃"]
+    G3 -- 否 --> G4{"④ 保存判定<br/>位移 ≥10m 或 距上点 ≥5min？"}
+    G4 -- 否 --> D4["不落盘"]
+    G4 -- 是 --> M5{"⑤ GPS 毛刺过滤（仅 GPS fix）<br/>位移速度 / 报告速度 &gt; 4？"}
+    M5 -- 是 --> D5["丢弃 · 不更新 lastSaved/状态机"]
+    M5 -- 否 --> W["✅ 写入 tracks/yyyy-MM-dd.jsonl（prv 标注来源）<br/>GPS 可用期 → 几乎全部 prv='gps'<br/>GPS 失效 &gt;3min → network 兜底点 prv='network'（5min 心跳）"]
+
+    W -.-> NOTE["补充：静止/移动状态机只由 GPS fix 驱动，network 兜底点不参与<br/>lastGpsFixAt（原始 fix）→ 拦网络兜底；lastGoodGpsAt（可用 fix）→ 管静默降频"]
+```
 
 ## 离线地图（可选）
 

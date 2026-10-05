@@ -7,6 +7,26 @@ import org.junit.Test
 class SavePolicyTest {
 
     @Test
+    fun `GPS 时效判定_未失效时网络fix被忽略`() {
+        val now = 1_000_000L
+        // GPS 刚刚更新过
+        assertFalse(SavePolicy.isGpsStale(now, now - 60_000, SavePolicy.GPS_FALLBACK_MS))
+        // 差 1ms 到阈值：仍未失效
+        assertFalse(SavePolicy.isGpsStale(now, now - SavePolicy.GPS_FALLBACK_MS + 1, SavePolicy.GPS_FALLBACK_MS))
+    }
+
+    @Test
+    fun `GPS 时效判定_超过阈值后网络兜底可用`() {
+        val now = 1_000_000L
+        // 恰好等于阈值：视为失效，网络兜底可用
+        assertTrue(SavePolicy.isGpsStale(now, now - SavePolicy.GPS_FALLBACK_MS, SavePolicy.GPS_FALLBACK_MS))
+        // 超过阈值
+        assertTrue(SavePolicy.isGpsStale(now, now - SavePolicy.GPS_FALLBACK_MS - 100, SavePolicy.GPS_FALLBACK_MS))
+        // 从未收到 GPS：直接兜底
+        assertTrue(SavePolicy.isGpsStale(now, 0, SavePolicy.GPS_FALLBACK_MS))
+    }
+
+    @Test
     fun `双源去重_4秒内3米内`() {
         assertTrue(SavePolicy.isDuplicate(3_000, 2f))
         assertFalse(SavePolicy.isDuplicate(5_000, 2f)) // 时间超了不去重
@@ -34,5 +54,36 @@ class SavePolicyTest {
         assertFalse(SavePolicy.isStatic(3f, 10f, 399_000, 100_000, 300_000)) // 差 1 秒
         assertFalse(SavePolicy.isStatic(12f, 10f, 400_000, 100_000, 300_000)) // 在移动
         assertTrue(SavePolicy.isStatic(3f, 10f, 400_000, 100_000, 300_000))   // 恰好到点也静止
+    }
+
+    @Test
+    fun `GPS多路径毛刺_位移速度比异常时丢弃`() {
+        // 真实场景：08:54:45→08:54:47 位移 153m/2s ≈ 76.5m/s，spd=5.11 → 比值 15
+        assertTrue(SavePolicy.isMultipath(153f, 2_000L, 5.11f))
+        // 正常移动：位移速度 ≈ 报告速度
+        assertFalse(SavePolicy.isMultipath(30f, 10_000L, 3f))   // 3/3 = 1 倍
+        assertFalse(SavePolicy.isMultipath(60f, 10_000L, 5f))   // 6/5 = 1.2 倍
+        // 临界：恰好 4 倍不丢，>4 倍才丢
+        assertFalse(SavePolicy.isMultipath(200f, 10_000L, 5f))  // 20/5 = 4.0
+        assertTrue(SavePolicy.isMultipath(210f, 10_000L, 5f))   // 21/5 = 4.2
+        // 高速车辆不误伤：25m/s ≈ 90km/h
+        assertFalse(SavePolicy.isMultipath(250f, 10_000L, 25f))
+    }
+
+    @Test
+    fun `GPS多路径毛刺_无速度时用绝对位移速度兜底`() {
+        // spd<=0.5（静止/慢速上下文）：位移速度 >12m/s 视为毛刺
+        assertTrue(SavePolicy.isMultipath(130f, 5_000L, 0.0f))    // 26 m/s
+        assertFalse(SavePolicy.isMultipath(50f, 5_000L, 0.3f))    // 10 m/s，保留
+        assertFalse(SavePolicy.isMultipath(100f, 10_000L, 0.4f))  // 10 m/s，保留
+    }
+
+    @Test
+    fun `GPS多路径毛刺_长间隔不判避免弦长误杀`() {
+        // 跳过毛刺后的正常点相对旧基准是长弦：5min 心跳 / 40s 间隔都不判
+        assertFalse(SavePolicy.isMultipath(215f, 300_000L, 4.94f)) // 心跳间隔
+        assertFalse(SavePolicy.isMultipath(153f, 40_000L, 5.11f))  // 40s 长间隔
+        // 过短间隔（多源同帧）也不判
+        assertFalse(SavePolicy.isMultipath(100f, 200L, 5f))
     }
 }

@@ -14,6 +14,7 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -33,9 +34,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
-import kotlin.math.roundToInt
 
 /**
  * 前台定位记录服务。
@@ -47,6 +48,7 @@ import kotlin.math.roundToInt
 class TrackingService : Service() {
 
     companion object {
+        private const val TAG = "LocationTracker"
         const val CHANNEL_ID = "tracking"
         private const val NOTIF_ID = 1
         const val ACTION_START = "com.xu.locationtracker.action.START"
@@ -71,9 +73,15 @@ class TrackingService : Service() {
     private var currentDay = ""
     private var lastSaved: TrackPoint? = null
     private var lastMovedAt = 0L
+    private var lastGpsFixAt = 0L
+    /** 最近一次通过精度过滤的"可用 GPS fix"时间（静默降频判定用） */
+    private var lastGoodGpsAt = 0L
+    /** 当前降频是否由 GPS 静默引起（区别于静止降频，恢复策略不同） */
+    private var gpsSilentDowngrade = false
     private var staticMode = false
     private var lastNotifAt = 0L
     private var dayLoaded = false
+    private var blackoutJob: Job? = null
 
     private val listener = object : LocationListener {
         override fun onLocationChanged(loc: Location) = onFix(loc)
@@ -141,6 +149,8 @@ class TrackingService : Service() {
         TrackerState.isStatic.value = false
         TrackerState.viewDay.value = null
         staticMode = false
+        gpsSilentDowngrade = false
+        lastGoodGpsAt = System.currentTimeMillis()
         currentDay = dayKeyOf(System.currentTimeMillis())
 
         // 恢复当天已有记录（服务被系统重启 / 手动继续）
@@ -150,8 +160,20 @@ class TrackingService : Service() {
                 val pts = AppGraph.store.readDay(currentDay)
                 TrackerState.points.value = pts
                 lastSaved = pts.lastOrNull()
+                lastGoodGpsAt = pts.lastOrNull { it.prv == "gps" }?.t ?: System.currentTimeMillis()
                 lastMovedAt = pts.lastOrNull()?.t ?: System.currentTimeMillis()
                 if (pts.isNotEmpty()) updateNotification()
+            }
+        }
+
+        // GPS 静默监测：室内/无信号时 GPS 可能长时间无 fix，定期检测并降频省电（恢复见 onFix）。
+        // 注意必须在主线程：requestLocationUpdates 需要 Looper，Default 工作线程会崩（已踩坑）
+        blackoutJob?.cancel()
+        blackoutJob = scope.launch(Dispatchers.Main) {
+            Log.d(TAG, "blackout checker started")
+            while (true) {
+                delay(30_000)
+                checkGpsBlackout()
             }
         }
 
@@ -177,12 +199,26 @@ class TrackingService : Service() {
 
     private fun onFix(loc: Location) {
         TrackerState.lastFixAt.value = System.currentTimeMillis()
-        if (!loc.hasAccuracy() || loc.accuracy <= 0f || loc.accuracy > Prefs.accFM) {
-            // 定位收到了但不可用：也刷新通知，让用户看出"正在收到定位（未被采纳）"
+        val now = System.currentTimeMillis()
+
+        val isGps = loc.provider == LocationManager.GPS_PROVIDER
+        if (isGps) lastGpsFixAt = now
+
+        // GPS 优先：GPS 仍在正常工作中时忽略网络 fix。
+        // 网络定位（WiFi AP 缓存坐标）误差可达数百米且滞后，混存会把轨迹拉回成锯齿；
+        // 仅当 GPS 连续失效超过 GPS_FALLBACK_MS 后，网络 fix 才作为兜底保存。
+        if (!isGps && !SavePolicy.isGpsStale(now, lastGpsFixAt, SavePolicy.GPS_FALLBACK_MS)) {
             updateNotification(throttle = true)
             return
         }
-        val now = System.currentTimeMillis()
+
+        if (!loc.hasAccuracy() || loc.accuracy <= 0f || loc.accuracy > Prefs.accFM) {
+            // 定位收到了但不可用（或精度超过过滤门槛）：也刷新通知，让用户看出"正在收到定位（未被采纳）"
+            updateNotification(throttle = true)
+            return
+        }
+        // 精度可达标的 GPS fix 才计入"最近可用 GPS"（静默降频判定依据）
+        if (isGps) lastGoodGpsAt = now
 
         // 跨天切换
         val day = dayKeyOf(now)
@@ -192,7 +228,14 @@ class TrackingService : Service() {
             lastSaved = null
         }
 
-        val p = TrackPoint(now, loc.latitude, loc.longitude, loc.accuracy, if (loc.hasSpeed()) loc.speed else 0f)
+        val p = TrackPoint(
+            t = now,
+            lat = loc.latitude,
+            lon = loc.longitude,
+            acc = loc.accuracy,
+            spd = if (loc.hasSpeed()) loc.speed else 0f,
+            prv = loc.provider ?: "",
+        )
         val last = lastSaved
         if (last == null) {
             savePoint(p)
@@ -204,12 +247,30 @@ class TrackingService : Service() {
         // 双源去重：4 秒内 3 米内视为同一位置的不同来源
         if (SavePolicy.isDuplicate(dt, dist)) return
 
+        // GPS 瞬时毛刺（多路径）：位置位移推算速度 >> 多普勒报告速度 → 丢弃。
+        // 被丢弃的点不保存也不更新 lastSaved/状态机，后续正常点拿原基准继续判定。
+        if (isGps && SavePolicy.isMultipath(dist, dt, p.spd)) {
+            Log.d(TAG, "multipath reject: dist=${dist.toInt()}m dt=${dt}ms spd=${p.spd}m/s")
+            return
+        }
+
         // 保存策略：移动超过阈值 或 到达在位心跳间隔
         if (SavePolicy.shouldSave(dist, dt, Prefs.minDistF, Prefs.keepAliveMs)) {
             savePoint(p)
         }
 
-        // 静止判定与频率切换
+        // 静止/移动状态机仅由 GPS 驱动：网络兜底坐标不可信，不参与升降频与移动判定
+        if (!isGps) return
+
+        // 静默降频恢复：GPS 重新给出可用 fix（可能是从室内走到窗边/室外），立即回常频；
+        // 若实际仍静止，随后由下方静止判定重新降频（那时 gpsSilentDowngrade=false，不会再次来回跳）
+        if (staticMode && gpsSilentDowngrade) {
+            gpsSilentDowngrade = false
+            staticMode = false
+            TrackerState.isStatic.value = false
+            startLocationUpdates(Prefs.fastIntervalMs)
+            updateNotification()
+        }
         if (dist >= Prefs.minDistF) {
             lastMovedAt = now
             if (staticMode) {
@@ -220,6 +281,30 @@ class TrackingService : Service() {
             }
         } else if (!staticMode && SavePolicy.isStatic(dist, Prefs.minDistF, now, lastMovedAt, Prefs.staticAfterMs)) {
             staticMode = true
+            TrackerState.isStatic.value = true
+            startLocationUpdates(Prefs.staticIntervalMs)
+            updateNotification()
+        }
+    }
+
+    /**
+     * GPS 静默降频：距最后一次"可用 GPS fix"超过 GPS_FALLBACK_MS（3 分钟）且尚未降频时，
+     * 把 GPS + 网络两个 provider 都降到 staticInterval（室内/无信号时不再 10s 空转耗电）。
+     * 进入时标记 gpsSilentDowngrade，GPS 恢复可用 fix 后由 onFix 立即拉回常频。
+     */
+    private fun checkGpsBlackout() {
+        val now = System.currentTimeMillis()
+        Log.d(
+            TAG,
+            "blackout: staticMode=$staticMode rec=${TrackerState.isRecording.value} " +
+                "stale=${SavePolicy.isGpsStale(now, lastGoodGpsAt, SavePolicy.GPS_FALLBACK_MS)} " +
+                "ageSec=${(now - lastGoodGpsAt) / 1000}"
+        )
+        if (staticMode || !TrackerState.isRecording.value) return
+        if (SavePolicy.isGpsStale(now, lastGoodGpsAt, SavePolicy.GPS_FALLBACK_MS)) {
+            Log.d(TAG, "blackout -> downgrade to static interval")
+            staticMode = true
+            gpsSilentDowngrade = true
             TrackerState.isStatic.value = true
             startLocationUpdates(Prefs.staticIntervalMs)
             updateNotification()
