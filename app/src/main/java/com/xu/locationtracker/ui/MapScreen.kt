@@ -1,5 +1,7 @@
 package com.xu.locationtracker.ui
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,7 +43,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.dp
@@ -50,6 +55,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.xu.locationtracker.R
 import com.xu.locationtracker.data.Prefs
 import com.xu.locationtracker.data.ReplayModel
 import com.xu.locationtracker.data.dayKeyOf
@@ -76,6 +82,7 @@ import org.maplibre.android.style.sources.GeoJsonSource
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.abs
 
 private const val SOURCE_TRACK = "track-line"
 private const val LAYER_TRACK = "track-line-layer"
@@ -272,6 +279,17 @@ fun MapScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                     onClose = { vm.showDay(null) },
                 )
             }
+            // 指南针：紧贴卡片下方右对齐（经典红白罗盘，点击回正北）
+            if (mapReady) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    CompassButton(holder.map)
+                }
+            }
         }
 
         // ---------- 底栏 ----------
@@ -352,6 +370,38 @@ fun MapScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
             Spacer(Modifier.size(6.dp))
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// 指南针（样式：MapLibre GL JS 官方罗盘造型 + 经典红白配色：白圆盘/红北针/浅灰南针）
+
+@Composable
+private fun CompassButton(map: MapLibreMap?, modifier: Modifier = Modifier) {
+    var bearing by remember { mutableDoubleStateOf(0.0) }
+    val currentMap = rememberUpdatedState(map)
+    DisposableEffect(map) {
+        val m = map ?: return@DisposableEffect onDispose {}
+        val listener = object : MapLibreMap.OnCameraMoveListener {
+            override fun onCameraMove() {
+                bearing = m.cameraPosition.bearing
+            }
+        }
+        m.addOnCameraMoveListener(listener)
+        bearing = m.cameraPosition.bearing
+        onDispose { m.removeOnCameraMoveListener(listener) }
+    }
+    // 相机右旋时罗盘针反向旋转，令箭头始终指向地图正北
+    val rotation = -bearing.toFloat()
+    val aligned = abs(bearing) < 1.0
+    Image(
+        painter = painterResource(R.drawable.ic_compass),
+        contentDescription = "回到正北",
+        modifier = modifier
+            .size(36.dp)
+            .alpha(if (aligned) 0.5f else 1f)
+            .rotate(rotation)
+            .clickable { currentMap.value?.animateCamera(CameraUpdateFactory.bearingTo(0.0), 300) },
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -539,6 +589,8 @@ fun MapLibreView(
     AndroidView(
         factory = { _ ->
             mapView.getMapAsync { map ->
+                // 原生指南针不可自定义配色，且会与顶部卡片重叠，改用自绘罗盘（CompassButton）
+                map.uiSettings?.setCompassEnabled(false)
                 map.setStyle(styleUrl) { style ->
                     setupLayers(style)
                     readyCb.value(map, style)
