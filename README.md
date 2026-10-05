@@ -65,7 +65,7 @@ SavePolicyTest   4 tests, 0 failures
 
 `prv` 为必填定位来源字段（`gps` / `network`）；解析时缺失 `prv` 的行视为非法数据被丢弃（历史数据已统一补齐该字段）。
 
-定位策略：**GPS 优先，网络兜底**——GPS 正常工作时忽略网络 fix（WiFi 定位误差可达数百米且滞后，混存会污染轨迹）；GPS 连续失效超过 3 分钟后网络 fix 才作为兜底保存。另外，距最后一次"可用 GPS fix"超过 3 分钟自动降频到静止采样间隔（室内/无信号时省电），GPS 恢复可用 fix 后立即拉回常频。
+定位策略：**GPS 优先，网络兜底**——GPS 正常工作时忽略网络 fix（WiFi 定位误差可达数百米且滞后，混存会污染轨迹）；GPS 连续失效超过 3 分钟后网络 fix 才作为兜底保存。频率只有两档（行动中 10s / 静止 60s）：静止时进入条件为"位移小持续 5min"或"无可用 GPS fix 超 3min"，任意移动即恢复行动中。
 
 ### 定位工作逻辑
 
@@ -76,21 +76,15 @@ flowchart TD
         NET["NETWORK_PROVIDER（WiFi/基站）<br/>室内 10~15s 一 fix · acc 30~400m · 无速度"]
     end
 
-    subgraph S2["全局频率状态 staticMode：两个订阅同步切换"]
-        F1["常频 FAST = 10s（启动默认）"]
-        F2["静止降频 = 60s<br/>GPS fix 正常但移动 &lt;10m 持续 5min"]
-        F3["静默降频 = 60s<br/>无可用 GPS fix 超 3min（每 30s 检测）"]
-        F4["恢复 FAST<br/>移动 ≥10m，或 GPS 可用 fix 出现"]
+    subgraph S2["二态频率：行动中 / 静止（两订阅同步切换）"]
+        A1["行动中 = 10s<br/>启动默认，移动恢复"]
+        A2["静止 = 60s<br/>进入条件（任一）：<br/>· GPS 正常但位移 &lt;10m 持续 5min<br/>· 无可用 GPS fix 超 3min（每 30s 检测）"]
     end
 
-    F1 -. 同时控制 .-> GPS
-    F2 -. 同时控制 .-> GPS
-    F3 -. 同时控制 .-> GPS
-    F4 -. 恢复 .-> GPS
-    F1 -. 同时控制 .-> NET
-    F2 -. 同时控制 .-> NET
-    F3 -. 同时控制 .-> NET
-    F4 -. 恢复 .-> NET
+    A1 -. 同时控制 .-> GPS
+    A1 -. 同时控制 .-> NET
+    A2 -. 同时控制 .-> GPS
+    A2 -. 同时控制 .-> NET
 
     GPS --> ON["onFix(loc)：按 loc.provider（prv）区分来源"]
     NET --> ON
@@ -107,7 +101,7 @@ flowchart TD
     M5 -- 是 --> D5["丢弃 · 不更新 lastSaved/状态机"]
     M5 -- 否 --> W["✅ 写入 tracks/yyyy-MM-dd.jsonl（prv 标注来源）<br/>GPS 可用期 → 几乎全部 prv='gps'<br/>GPS 失效 &gt;3min → network 兜底点 prv='network'（5min 心跳）"]
 
-    W -.-> NOTE["补充：静止/移动状态机只由 GPS fix 驱动，network 兜底点不参与<br/>lastGpsFixAt（原始 fix）→ 拦网络兜底；lastGoodGpsAt（可用 fix）→ 管静默降频"]
+    W -.-> NOTE["补充：静止/行动状态机只由 GPS fix 驱动，network 兜底点不参与<br/>lastGpsFixAt（原始 fix）→ 拦网络兜底；lastGoodGpsAt（可用 fix）→ 管无信号进静止"]
 ```
 
 ## 离线地图（可选）

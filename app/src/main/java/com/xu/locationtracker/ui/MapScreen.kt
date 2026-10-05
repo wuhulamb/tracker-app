@@ -360,7 +360,7 @@ private fun StatusCard(
     val statusText = when {
         !isRecording -> "未在记录"
         isStatic -> "记录中 · 静止省电"
-        else -> "记录中"
+        else -> "记录中 · 行动中"
     }
     val color = when {
         !isRecording -> MaterialTheme.colorScheme.onSurfaceVariant

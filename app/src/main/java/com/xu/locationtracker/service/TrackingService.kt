@@ -77,10 +77,8 @@ class TrackingService : Service() {
     private var lastSaved: TrackPoint? = null
     private var lastMovedAt = 0L
     private var lastGpsFixAt = 0L
-    /** 最近一次通过精度过滤的"可用 GPS fix"时间（静默降频判定用） */
+    /** 最近一次通过精度过滤的"可用 GPS fix"时间（判定无信号进静止） */
     private var lastGoodGpsAt = 0L
-    /** 当前降频是否由 GPS 静默引起（区别于静止降频，恢复策略不同） */
-    private var gpsSilentDowngrade = false
     private var staticMode = false
     private var lastNotifAt = 0L
     private var dayLoaded = false
@@ -148,7 +146,6 @@ class TrackingService : Service() {
         TrackerState.isStatic.value = false
         TrackerState.viewDay.value = null
         staticMode = false
-        gpsSilentDowngrade = false
         lastGoodGpsAt = System.currentTimeMillis()
         currentDay = dayKeyOf(System.currentTimeMillis())
 
@@ -267,18 +264,12 @@ class TrackingService : Service() {
             savePoint(p)
         }
 
-        // 静止/移动状态机仅由 GPS 驱动：网络兜底坐标不可信，不参与升降频与移动判定
+        // 二态状态机（行动中 / 静止），仅由 GPS 驱动：网络兜底坐标不可信，不参与升降频与移动判定
         if (!isGps) return
 
-        // 静默降频恢复：GPS 重新给出可用 fix（可能是从室内走到窗边/室外），立即回常频；
-        // 若实际仍静止，随后由下方静止判定重新降频（那时 gpsSilentDowngrade=false，不会再次来回跳）
-        if (staticMode && gpsSilentDowngrade) {
-            gpsSilentDowngrade = false
-            staticMode = false
-            TrackerState.isStatic.value = false
-            startLocationUpdates(Prefs.fastIntervalMs)
-            updateNotification()
-        }
+        // 退出静止 → 行动中：移动（位移 ≥10m）。
+        // 一个条件同时覆盖两种静止来源（位移静止 / GPS 静默），
+        // 且不会来回跳——静止用户即使 GPS fix 恢复也不升频（他没动）。
         if (dist >= Prefs.minDistF) {
             lastMovedAt = now
             if (staticMode) {
@@ -288,6 +279,7 @@ class TrackingService : Service() {
                 updateNotification()
             }
         } else if (!staticMode && SavePolicy.isStatic(dist, Prefs.minDistF, now, lastMovedAt, Prefs.staticAfterMs)) {
+            // 进入静止（来源一：GPS fix 正常但位移小持续 staticAfter）
             staticMode = true
             TrackerState.isStatic.value = true
             startLocationUpdates(Prefs.staticIntervalMs)
@@ -296,9 +288,10 @@ class TrackingService : Service() {
     }
 
     /**
-     * GPS 静默降频：距最后一次"可用 GPS fix"超过 GPS_FALLBACK_MS（3 分钟）且尚未降频时，
-     * 把 GPS + 网络两个 provider 都降到 staticInterval（室内/无信号时不再 10s 空转耗电）。
-     * 进入时标记 gpsSilentDowngrade，GPS 恢复可用 fix 后由 onFix 立即拉回常频。
+     * 静止状态监测：距最后一次"可用 GPS fix"超过 GPS_FALLBACK_MS（3 分钟）
+     * 且尚未进入静止时，把 GPS + 网络两个 provider 都降到 staticInterval，
+     * 与位移静止共用同一个静止状态（退出同样只需移动）。
+     * 注：必须在主线程调用（requestLocationUpdates 需要 Looper）。
      */
     private fun checkGpsBlackout() {
         val now = System.currentTimeMillis()
@@ -310,9 +303,8 @@ class TrackingService : Service() {
         )
         if (staticMode || !TrackerState.isRecording.value) return
         if (SavePolicy.isGpsStale(now, lastGoodGpsAt, SavePolicy.GPS_FALLBACK_MS)) {
-            Log.d(TAG, "blackout -> downgrade to static interval")
+            Log.d(TAG, "blackout -> static (GPS silent)")
             staticMode = true
-            gpsSilentDowngrade = true
             TrackerState.isStatic.value = true
             startLocationUpdates(Prefs.staticIntervalMs)
             updateNotification()
@@ -369,7 +361,7 @@ class TrackingService : Service() {
         val status = when {
             !TrackerState.isRecording.value -> "已停止"
             TrackerState.isStatic.value -> "记录中 · 静止省电"
-            else -> "记录中"
+            else -> "记录中 · 行动中"
         }
         val text = buildString {
             append(status).append(" · ")
