@@ -113,10 +113,19 @@ flowchart TD
 
 ## 底图（在线 OpenFreeMap）
 
-应用使用**唯一的在线 OSM 矢量底图** OpenFreeMap（shortbread schema，WGS-84）：
+应用使用**在线 OSM 矢量底图** OpenFreeMap（shortbread schema，WGS-84）：
 
 - 数据源：`https://tiles.openfreemap.org/planet`（tilejson，全球 z0-15+，道路/地名数据完整）
-- 样式：`app/src/main/assets/styles/openfreemap_online.json`（官方 Bright，删除了 ne2 影像阴影层；字体走 `tiles.openfreemap.org/fonts`）
+- 样式：内置 OpenFreeMap 官方 4 种风格（`app/src/main/assets/styles/ofm_<style>.json`，已移除 ne2 影像阴影层；字体走 `tiles.openfreemap.org/fonts`）：
+
+  | 值（内部） | 设置页名称 | 特点 |
+  |---|---|---|
+  | `bright` | 亮色 | 亮色底图（默认）|
+  | `positron` | 浅色 | 极简浅色，无 POI |
+  | `dark` | 暗色 | 深色底图 |
+  | `fiord` | 深蓝 | 深蓝夜色 |
+
+- 选择：设置页 → 「地图样式」，切换后返回地图页生效（写入 `Prefs.mapStyle`，`MapStyles.styleSpec` 按选项加载对应样式）
 - 坐标系：WGS-84，轨迹点直接叠加，无需 GCJ 纠偏
 - 注意：服务器位于国外，需手机能直连 `tiles.openfreemap.org`（网络不通时地图为空白背景色）
 

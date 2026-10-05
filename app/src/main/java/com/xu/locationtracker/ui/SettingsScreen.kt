@@ -56,6 +56,7 @@ fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
     var gpsSilent by remember { mutableIntStateOf(Prefs.gpsSilentAfterMin) }
     var keepAlive by remember { mutableIntStateOf(Prefs.keepAliveMin) }
     var showAdvanced by remember { mutableStateOf(false) }
+    var mapStyle by remember { mutableStateOf(Prefs.mapStyle) }
 
     Column(
         modifier
@@ -82,6 +83,33 @@ fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
             }
         }
 
+        // ---------- 地图样式 ----------
+        SectionCard("地图样式") {
+            MapStyles.STYLES.forEach { (value, label) ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            mapStyle = value
+                            Prefs.mapStyle = value
+                            toast(context, "已切换到 $label，返回地图页生效")
+                        }
+                        .padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RadioButton(
+                        selected = mapStyle == value,
+                        onClick = {
+                            mapStyle = value
+                            Prefs.mapStyle = value
+                            toast(context, "已切换到 $label，返回地图页生效")
+                        },
+                    )
+                    Text(label)
+                }
+            }
+        }
+
         // ---------- 记录参数 ----------
         SectionCard("记录参数") {
             // 主参数：轨迹密度 + 采样频率（用户最常调的两项）
@@ -91,11 +119,6 @@ fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
             ParamRow("采样间隔", "秒", fastInt, 3..600) {
                 fastInt = it; Prefs.fastIntervalSec = it; vm.applyParams()
             }
-            Text(
-                "位移阈值 = 轨迹密度（越小越精细）；采样间隔 = 定位频率与耗电。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline,
-            )
 
             // 高级参数：默认折叠，普通使用无需调整
             Row(
@@ -128,11 +151,6 @@ fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                 ParamRow("精度过滤", "米", accuracy, 5..200) {
                     accuracy = it; Prefs.filterAccuracyM = it; vm.applyParams()
                 }
-                Text(
-                    "静止时自动降频省电（判定时长/静止采样间隔）；心跳保证静止时每 N 分钟留一个点（0=关闭）；精度过滤丢弃 acc 超标的定位。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline,
-                )
             }
         }
 

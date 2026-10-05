@@ -68,6 +68,13 @@ object Prefs {
         get() = sp.getInt(KEY_KEEPALIVE, 5)
         set(v) = sp.edit().putInt(KEY_KEEPALIVE, v).apply()
 
+    // ---------- 底图样式 ----------
+
+    /** OpenFreeMap 官方样式名：bright / positron / dark / fiord（对应设置页 亮色/浅色/暗色/深蓝） */
+    var mapStyle: String
+        get() = sp.getString(KEY_MAP_STYLE, "bright") ?: "bright"
+        set(v) = sp.edit().putString(KEY_MAP_STYLE, v).apply()
+
     // ---------- 派生便捷属性 ----------
 
     val fastIntervalMs: Long get() = fastIntervalSec * 1000L
@@ -88,4 +95,5 @@ object Prefs {
     private const val KEY_STATIC_INT = "static_interval"
     private const val KEY_GPS_SILENT = "gps_silent_after"
     private const val KEY_KEEPALIVE = "keepalive"
+    private const val KEY_MAP_STYLE = "map_style"
 }
