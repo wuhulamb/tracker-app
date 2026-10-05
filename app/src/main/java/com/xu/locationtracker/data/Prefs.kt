@@ -68,6 +68,11 @@ object Prefs {
         get() = sp.getInt(KEY_KEEPALIVE, 5)
         set(v) = sp.edit().putInt(KEY_KEEPALIVE, v).apply()
 
+    /** 记录精度预设（移动中采样间隔档位）：eco / standard / fine（见 MotionProfile.Quality） */
+    var recordQuality: String
+        get() = sp.getString(KEY_RECORD_QUALITY, "standard") ?: "standard"
+        set(v) = sp.edit().putString(KEY_RECORD_QUALITY, v).apply()
+
     // ---------- 底图样式 ----------
 
     /** OpenFreeMap 官方样式名：bright / positron / dark / fiord（对应设置页 亮色/浅色/暗色/深蓝） */
@@ -95,5 +100,6 @@ object Prefs {
     private const val KEY_STATIC_INT = "static_interval"
     private const val KEY_GPS_SILENT = "gps_silent_after"
     private const val KEY_KEEPALIVE = "keepalive"
+    private const val KEY_RECORD_QUALITY = "record_quality"
     private const val KEY_MAP_STYLE = "map_style"
 }

@@ -84,6 +84,16 @@ class TrackingService : Service() {
     private var dayLoaded = false
     private var blackoutJob: Job? = null
 
+    /** 运动档位跟踪：速度 -> 档位 -> 移动中采样间隔 */
+    private val motion = MotionProfile.Tracker()
+    /** 当前实际订阅的间隔，避免相同间隔重复订阅 */
+    private var appliedIntervalMs = 0L
+    /** 上一个通过精度闸门的可用 fix（用于速度缺失时的位置差分） */
+    private var hasPrevFix = false
+    private var prevFixLat = 0.0
+    private var prevFixLon = 0.0
+    private var prevFixT = 0L
+
     private val listener = object : LocationListener {
         override fun onLocationChanged(loc: Location) = onFix(loc)
         @Deprecated("Deprecated in Java")
@@ -112,9 +122,7 @@ class TrackingService : Service() {
             ACTION_REFRESH -> {
                 // 参数变更：按新参数重启定位订阅
                 if (TrackerState.isRecording.value) {
-                    startLocationUpdates(
-                        if (staticMode) Prefs.staticIntervalMs else Prefs.fastIntervalMs
-                    )
+                    applyInterval(if (staticMode) Prefs.staticIntervalMs else motionIntervalMs())
                 }
                 return if (TrackerState.isRecording.value) START_STICKY else START_NOT_STICKY
             }
@@ -174,7 +182,7 @@ class TrackingService : Service() {
                     if (pts.isNotEmpty()) updateNotification()
                 }
             }
-            startLocationUpdates(Prefs.fastIntervalMs)
+            applyInterval(motionIntervalMs())
         }
 
         // GPS 静默监测：室内/无信号时 GPS 可能长时间无 fix，定期检测并降频省电（恢复见 onFix）。
@@ -205,6 +213,17 @@ class TrackingService : Service() {
      *  - 不再 removeUpdates 后重挂：同一 listener 重复 requestLocationUpdates 会被新参数
      *    取代，避免华为 ROM 上"同一帧摘了又挂"导致订阅假死（曾实测 32 分钟无回调）。
      */
+    /** 移动中的目标间隔：由运动档位与记录精度决定（静止时由调用方使用 staticIntervalMs） */
+    private fun motionIntervalMs(): Long =
+        MotionProfile.intervalMs(motion.level, MotionProfile.qualityOf(Prefs.recordQuality))
+
+    /** 按需切换定位订阅间隔（相同值不重复订阅，避免华为 ROM 上频繁重挂导致订阅假死） */
+    private fun applyInterval(intervalMs: Long) {
+        if (intervalMs == appliedIntervalMs) return
+        appliedIntervalMs = intervalMs
+        startLocationUpdates(intervalMs)
+    }
+
     private fun startLocationUpdates(intervalMs: Long) {
         val lm = locManager ?: return
         try {
@@ -237,6 +256,18 @@ class TrackingService : Service() {
         }
         // 精度可达标的 GPS fix 才计入"最近可用 GPS"（静默降频判定依据）
         if (isGps) lastGoodGpsAt = now
+
+        // 运动档位：仅由 GPS 驱动；loc.speed（多普勒）优先，缺失时用与上一个可用 fix 的位置差分
+        if (isGps) {
+            val diffDist = if (hasPrevFix) geoDistM(prevFixLat to prevFixLon, loc.latitude to loc.longitude) else null
+            val diffDt = if (hasPrevFix) now - prevFixT else 0L
+            motion.onFix(diffDist, diffDt, if (loc.hasSpeed()) loc.speed else null)
+            hasPrevFix = true
+            prevFixLat = loc.latitude
+            prevFixLon = loc.longitude
+            prevFixT = now
+        }
+
         // 记录最新可用 fix 坐标（WGS-84，供 UI"回到当前位置"使用）
         TrackerState.lastFixLoc.value = loc.latitude to loc.longitude
 
@@ -290,16 +321,19 @@ class TrackingService : Service() {
             if (staticMode) {
                 staticMode = false
                 TrackerState.isStatic.value = false
-                startLocationUpdates(Prefs.fastIntervalMs)
+                applyInterval(motionIntervalMs())
                 updateNotification()
             }
         } else if (!staticMode && SavePolicy.isStatic(dist, Prefs.minDistF, now, lastMovedAt, Prefs.staticAfterMs)) {
             // 进入静止（来源一：GPS fix 正常但位移小持续 staticAfter）
             staticMode = true
             TrackerState.isStatic.value = true
-            startLocationUpdates(Prefs.staticIntervalMs)
+            applyInterval(Prefs.staticIntervalMs)
             updateNotification()
         }
+
+        // 移动中按档位调整采样间隔（静止时保持 staticInterval）
+        if (!staticMode) applyInterval(motionIntervalMs())
     }
 
     /**
@@ -321,7 +355,7 @@ class TrackingService : Service() {
             Log.d(TAG, "blackout -> static (GPS silent)")
             staticMode = true
             TrackerState.isStatic.value = true
-            startLocationUpdates(Prefs.staticIntervalMs)
+            applyInterval(Prefs.staticIntervalMs)
             updateNotification()
         }
     }
@@ -345,6 +379,9 @@ class TrackingService : Service() {
         TrackerState.isRecording.value = false
         TrackerState.isStatic.value = false
         dayLoaded = false
+        motion.reset()
+        appliedIntervalMs = 0L
+        hasPrevFix = false
         drainSaveQueue()
         scope.cancel()
         AppGraph.store.closeAll()
@@ -360,6 +397,9 @@ class TrackingService : Service() {
             TrackerState.isRecording.value = false
             TrackerState.isStatic.value = false
             dayLoaded = false
+            motion.reset()
+            appliedIntervalMs = 0L
+            hasPrevFix = false
             drainSaveQueue()
             scope.cancel()
         }

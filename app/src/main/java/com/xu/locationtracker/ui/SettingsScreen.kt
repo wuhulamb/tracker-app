@@ -40,6 +40,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.xu.locationtracker.data.Prefs
 import com.xu.locationtracker.data.dayKeyOf
+import com.xu.locationtracker.service.MotionProfile
 
 @Composable
 fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
@@ -49,7 +50,7 @@ fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
 
     // 参数本地状态（编辑后写回 Prefs 并通知服务）
     var accuracy by remember { mutableIntStateOf(Prefs.filterAccuracyM) }
-    var fastInt by remember { mutableIntStateOf(Prefs.fastIntervalSec) }
+    var quality by remember { mutableStateOf(MotionProfile.qualityOf(Prefs.recordQuality)) }
     var minDist by remember { mutableIntStateOf(Prefs.minDistM) }
     var staticAfter by remember { mutableIntStateOf(Prefs.staticAfterMin) }
     var staticInt by remember { mutableIntStateOf(Prefs.staticIntervalSec) }
@@ -116,8 +117,37 @@ fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
             ParamRow("记录触发位移", "米", minDist, 3..200) {
                 minDist = it; Prefs.minDistM = it; vm.applyParams()
             }
-            ParamRow("采样间隔", "秒", fastInt, 3..600) {
-                fastInt = it; Prefs.fastIntervalSec = it; vm.applyParams()
+            // 记录精度：移动中采样间隔档位（步行/骑行/驾车/高速自动分档）
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("记录精度", style = MaterialTheme.typography.bodyLarge)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    MotionProfile.Quality.entries.forEach { q ->
+                        Row(
+                            Modifier.clickable {
+                                quality = q
+                                Prefs.recordQuality = q.name
+                                vm.applyParams()
+                            },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = quality == q,
+                                onClick = {
+                                    quality = q
+                                    Prefs.recordQuality = q.name
+                                    vm.applyParams()
+                                },
+                            )
+                            Text(q.label, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
             }
 
             // 高级参数：默认折叠，普通使用无需调整
