@@ -26,7 +26,7 @@ app/src/main/java/com/xu/locationtracker/
 │   ├── HistoryScreen.kt    历史日期列表
 │   ├── SettingsScreen.kt   设置
 │   ├── MainViewModel.kt    ViewModel
-│   └── MapStyles.kt        在线/离线样式
+│   └── MapStyles.kt       底图样式（在线 OpenFreeMap）
 └── util/
     ├── Gcj.kt              WGS-84 → GCJ-02
     ├── Exporter.kt         GPX/CSV 导出
@@ -58,7 +58,6 @@ SavePolicyTest   4 tests, 0 failures
 | 内容 | 位置 |
 |---|---|
 | 轨迹点（JSONL，每天一个文件） | `/sdcard/Android/data/com.xu.locationtracker/files/tracks/yyyy-MM-dd.jsonl` |
-| 离线地图 | `/sdcard/Android/data/com.xu.locationtracker/files/maps/shanghai.mbtiles` |
 | 导出文件 | 系统"下载/行程轨迹/" |
 
 单行格式：`{"t":毫秒时间戳,"lat":纬度,"lon":经度,"acc":精度米,"spd":速度m/s,"prv":定位来源}`
@@ -112,18 +111,17 @@ flowchart TD
 
 同理，重复 `ACTION_START` 在“已在记录且当天已恢复”时直接返回（只刷一次通知），不重跑恢复与订阅 —— 否则会把静止降频打断、回到高频采样。代价：启动到首次定位推延几十毫秒。
 
-## 离线地图（可选）
+## 底图（在线 OpenFreeMap）
 
-应用默认使用高德在线瓦片。需要离线底图时：
+应用使用**唯一的在线 OSM 矢量底图** OpenFreeMap（shortbread schema，WGS-84）：
 
-```bash
-# 生成上海 10-18 级离线包（无网络瓦片缓存时用）
-python3 tools/download_tiles.py maps/shanghai.mbtiles
+- 数据源：`https://tiles.openfreemap.org/planet`（tilejson，全球 z0-15+，道路/地名数据完整）
+- 样式：`app/src/main/assets/styles/openfreemap_online.json`（官方 Bright，删除了 ne2 影像阴影层；字体走 `tiles.openfreemap.org/fonts`）
+- 坐标系：WGS-84，轨迹点直接叠加，无需 GCJ 纠偏
+- 注意：服务器位于国外，需手机能直连 `tiles.openfreemap.org`（网络不通时地图为空白背景色）
 
-# 推送到手机后重启应用
-adb push maps/shanghai.mbtiles /sdcard/Android/data/com.xu.locationtracker/files/maps/
-```
+曾使用过的 maptoolkit 离线矢量包（浦东等郊区道路数据稀疏、高德底图需 GCJ 纠偏）均已移除，不再需要任何离线瓦片。
 
 ## 许可
 
-仅供个人学习使用。地图瓦片版权归高德；轨迹数据归记录者本人。
+仅供个人学习使用。底图数据 © OpenStreetMap contributors（经 OpenFreeMap 分发，Zlib 许可）；轨迹数据归记录者本人。
