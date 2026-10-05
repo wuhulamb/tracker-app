@@ -34,6 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -67,6 +68,9 @@ class TrackingService : Service() {
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /** 落盘队列：单消费者严格 FIFO 串行写文件，保证每笔必写、顺序与生成一致 */
+    private var saveQueue: Channel<TrackPoint> = Channel(Channel.UNLIMITED)
     private var locManager: LocationManager? = null
     private var saveJob: Job? = null
     private var currentDay = ""
@@ -169,6 +173,15 @@ class TrackingService : Service() {
             while (true) {
                 delay(30_000)
                 checkGpsBlackout()
+            }
+        }
+
+        // 落盘消费者：单协程从队列取点，严格按到达顺序串行写文件（不 cancel 上一笔，无丢点风险）
+        saveJob?.cancel()
+        if (saveQueue.isClosedForSend) saveQueue = Channel(Channel.UNLIMITED) // 上个周期已 close 排空，重建
+        saveJob = scope.launch {
+            for (p in saveQueue) {
+                AppGraph.store.append(p)
             }
         }
 
@@ -309,9 +322,15 @@ class TrackingService : Service() {
     private fun savePoint(p: TrackPoint) {
         lastSaved = p
         TrackerState.points.value = TrackerState.points.value + p
-        saveJob?.cancel()
-        saveJob = scope.launch { AppGraph.store.append(p) }
+        // 串行落盘：入队即可（UNLIMITED 不阻塞），消费者协程按顺序逐一 flush
+        saveQueue.trySend(p)
         updateNotification(throttle = true)
+    }
+
+    /** 停止前排空落盘队列：close 后消费者消费完剩余元素自动退出，join 等待写盘完成（毫秒级） */
+    private fun drainSaveQueue() {
+        saveQueue.close()
+        runCatching { kotlinx.coroutines.runBlocking { saveJob?.join() } }
     }
 
     private fun stopTracking() {
@@ -319,6 +338,7 @@ class TrackingService : Service() {
         TrackerState.isRecording.value = false
         TrackerState.isStatic.value = false
         dayLoaded = false
+        drainSaveQueue()
         scope.cancel()
         AppGraph.store.closeAll()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
@@ -333,6 +353,7 @@ class TrackingService : Service() {
             TrackerState.isRecording.value = false
             TrackerState.isStatic.value = false
             dayLoaded = false
+            drainSaveQueue()
             scope.cancel()
         }
         AppGraph.store.closeAll()
