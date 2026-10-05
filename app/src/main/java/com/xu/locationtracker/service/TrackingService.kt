@@ -407,7 +407,6 @@ class TrackingService : Service() {
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_track)
             .setColor(if (stale) Color.GRAY else 0xFF1565D8.toInt())
-            .setContentTitle("行程轨迹")
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setOngoing(true)
