@@ -13,10 +13,9 @@ import com.xu.locationtracker.data.TrackerState
 import com.xu.locationtracker.data.dayKeyOf
 import com.xu.locationtracker.service.TrackingService
 import com.xu.locationtracker.util.Exporter
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -31,14 +30,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val lastFixAt = TrackerState.lastFixAt
     val lastFixLoc = TrackerState.lastFixLoc
 
-    val history: StateFlow<List<DaySummary>> = kotlinx.coroutines.flow.flow {
-        while (true) {
-            emit(snapshotDays())
-            delay(15_000)
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), snapshotDays())
+    /** 历史日期列表：进入历史页时按需读一次磁盘，不做轮询 */
+    val history = MutableStateFlow<List<DaySummary>>(emptyList())
 
-    private fun snapshotDays(): List<DaySummary> {
+    fun refreshHistory() {
+        viewModelScope.launch {
+            history.value = withContext(Dispatchers.IO) { snapshotDays() }
+        }
+    }
+
+    private suspend fun snapshotDays(): List<DaySummary> {
         val ctx = getApplication<Application>()
         if (!AppGraph.isReady) return emptyList()
         return AppGraph.store.listDays().map { day -> DaySummary(day, countLines(day)) }

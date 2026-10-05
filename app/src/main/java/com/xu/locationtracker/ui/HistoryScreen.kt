@@ -16,6 +16,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +27,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun HistoryScreen(vm: MainViewModel, onOpenDay: (String) -> Unit, modifier: Modifier = Modifier) {
     val history by vm.history.collectAsStateWithLifecycle()
     val viewDay by vm.viewDay.collectAsStateWithLifecycle()
+
+    // 进入历史页（切 Tab 重新组合）时读一次磁盘快照
+    LaunchedEffect(Unit) { vm.refreshHistory() }
 
     if (history.isEmpty()) {
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

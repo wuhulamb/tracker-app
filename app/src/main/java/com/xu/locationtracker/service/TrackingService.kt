@@ -149,17 +149,24 @@ class TrackingService : Service() {
         lastGoodGpsAt = System.currentTimeMillis()
         currentDay = dayKeyOf(System.currentTimeMillis())
 
-        // 恢复当天已有记录（服务被系统重启 / 手动继续）
-        if (!dayLoaded) {
-            dayLoaded = true
-            scope.launch {
-                val pts = AppGraph.store.readDay(currentDay)
-                TrackerState.points.value = pts
-                lastSaved = pts.lastOrNull()
-                lastGoodGpsAt = pts.lastOrNull { it.prv == "gps" }?.t ?: System.currentTimeMillis()
-                lastMovedAt = pts.lastOrNull()?.t ?: System.currentTimeMillis()
-                if (pts.isNotEmpty()) updateNotification()
+        // 恢复当天已有记录（服务被系统重启 / 手动继续），恢复完成后才订阅定位。
+        // 顺序不能颠倒：加载协程写 points/lastSaved/lastMovedAt，与主线程 onFix 的写入并发
+        // （StateFlow 的 value = value + p 读改写非原子），先订阅会把刚收到的点覆盖掉、
+        // 并把 lastSaved/lastMovedAt 回退成旧值（进而误判静止）。代价仅是首次定位晚几十毫秒。
+        // 另：requestLocationUpdates 需要 Looper，此协程也必须在主线程。
+        scope.launch(Dispatchers.Main) {
+            if (!dayLoaded) {
+                dayLoaded = true
+                runCatching {
+                    val pts = AppGraph.store.readDay(currentDay)
+                    TrackerState.points.value = pts
+                    lastSaved = pts.lastOrNull()
+                    lastGoodGpsAt = pts.lastOrNull { it.prv == "gps" }?.t ?: System.currentTimeMillis()
+                    lastMovedAt = pts.lastOrNull()?.t ?: System.currentTimeMillis()
+                    if (pts.isNotEmpty()) updateNotification()
+                }
             }
+            startLocationUpdates(Prefs.fastIntervalMs)
         }
 
         // GPS 静默监测：室内/无信号时 GPS 可能长时间无 fix，定期检测并降频省电（恢复见 onFix）。
@@ -181,8 +188,6 @@ class TrackingService : Service() {
                 AppGraph.store.append(p)
             }
         }
-
-        startLocationUpdates(Prefs.fastIntervalMs)
     }
 
     /**
