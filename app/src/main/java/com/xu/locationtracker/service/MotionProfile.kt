@@ -88,12 +88,17 @@ object MotionProfile {
         var level: Level = Level.STATIC
             private set
 
+        /** 当前平滑速度（m/s），供毛刺判定等使用；未收到 fix 时为 0 */
+        var speedMps: Float = 0f
+            private set
+
         private var ema: Float? = null
         private var pending: Level? = null
         private var pendingCount = 0
 
         fun reset() {
             level = Level.STATIC
+            speedMps = 0f
             ema = null
             pending = null
             pendingCount = 0
@@ -114,6 +119,7 @@ object MotionProfile {
             val prev = ema
             val smoothed = if (prev == null) raw else prev + EMA_ALPHA * (raw - prev)
             ema = smoothed
+            speedMps = smoothed
 
             val target = classifyWithHysteresis(smoothed, level)
             if (target == level) {

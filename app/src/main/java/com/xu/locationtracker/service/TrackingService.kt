@@ -213,6 +213,17 @@ class TrackingService : Service() {
      *  - 不再 removeUpdates 后重挂：同一 listener 重复 requestLocationUpdates 会被新参数
      *    取代，避免华为 ROM 上"同一帧摘了又挂"导致订阅假死（曾实测 32 分钟无回调）。
      */
+    /** 用已通过过滤的 GPS fix 更新运动档位（速度缺失时用与上一个已接受 fix 的位置差分） */
+    private fun updateMotion(loc: Location, now: Long) {
+        val diffDist = if (hasPrevFix) geoDistM(prevFixLat to prevFixLon, loc.latitude to loc.longitude) else null
+        val diffDt = if (hasPrevFix) now - prevFixT else 0L
+        motion.onFix(diffDist, diffDt, if (loc.hasSpeed()) loc.speed else null)
+        hasPrevFix = true
+        prevFixLat = loc.latitude
+        prevFixLon = loc.longitude
+        prevFixT = now
+    }
+
     /** 移动中的目标间隔：由运动档位与记录精度决定（静止时由调用方使用 staticIntervalMs） */
     private fun motionIntervalMs(): Long =
         MotionProfile.intervalMs(motion.level, MotionProfile.qualityOf(Prefs.recordQuality))
@@ -257,17 +268,6 @@ class TrackingService : Service() {
         // 精度可达标的 GPS fix 才计入"最近可用 GPS"（静默降频判定依据）
         if (isGps) lastGoodGpsAt = now
 
-        // 运动档位：仅由 GPS 驱动；loc.speed（多普勒）优先，缺失时用与上一个可用 fix 的位置差分
-        if (isGps) {
-            val diffDist = if (hasPrevFix) geoDistM(prevFixLat to prevFixLon, loc.latitude to loc.longitude) else null
-            val diffDt = if (hasPrevFix) now - prevFixT else 0L
-            motion.onFix(diffDist, diffDt, if (loc.hasSpeed()) loc.speed else null)
-            hasPrevFix = true
-            prevFixLat = loc.latitude
-            prevFixLon = loc.longitude
-            prevFixT = now
-        }
-
         // 记录最新可用 fix 坐标（WGS-84，供 UI"回到当前位置"使用）
         TrackerState.lastFixLoc.value = loc.latitude to loc.longitude
 
@@ -289,6 +289,7 @@ class TrackingService : Service() {
         )
         val last = lastSaved
         if (last == null) {
+            if (isGps) updateMotion(loc, now)   // 首个点也要初始化运动档位
             savePoint(p)
             return
         }
@@ -299,11 +300,14 @@ class TrackingService : Service() {
         if (SavePolicy.isDuplicate(dt, dist)) return
 
         // GPS 瞬时毛刺（多路径）：位置位移推算速度 >> 多普勒报告速度 → 丢弃。
-        // 被丢弃的点不保存也不更新 lastSaved/状态机，后续正常点拿原基准继续判定。
-        if (isGps && SavePolicy.isMultipath(dist, dt, p.spd)) {
+        // 被丢弃的点不保存、不更新 lastSaved/状态机，也不更新运动档位（避免污染速度基线）；
+        // 无报告速度时用"当前档位平滑速度"作参照，避免高速（高铁）被固定 12m/s 误杀。
+        if (isGps && SavePolicy.isMultipath(dist, dt, p.spd, motion.speedMps)) {
             Log.d(TAG, "multipath reject: dist=${dist.toInt()}m dt=${dt}ms spd=${p.spd}m/s")
             return
         }
+        // 通过去重/毛刺过滤的可用 GPS fix 才更新运动档位（供移动中采样间隔使用）
+        if (isGps) updateMotion(loc, now)
 
         // 保存策略：移动超过阈值 或 到达在位心跳间隔
         if (SavePolicy.shouldSave(dist, dt, Prefs.minDistF, Prefs.keepAliveMs)) {

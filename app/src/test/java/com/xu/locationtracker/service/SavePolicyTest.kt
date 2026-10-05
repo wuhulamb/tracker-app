@@ -88,4 +88,18 @@ class SavePolicyTest {
         // 过短间隔（多源同帧）也不判
         assertFalse(SavePolicy.isMultipath(100f, 200L, 5f))
     }
+
+    @Test
+    fun `无报告速度时按档位速度放宽毛刺上限`() {
+        // 高铁 83m/s、无报告速度、档位速度 83 → 上限 max(12, 4×83)=332 → 不判（修复高铁误杀）
+        assertFalse(SavePolicy.isMultipath(830f, 10_000L, 0f, expectedSpeedMps = 83f))
+        // 同一位移但档位速度仍为 0（恢复首点、基线未建立）→ 阈值 12 → 判为毛刺
+        assertTrue(SavePolicy.isMultipath(830f, 10_000L, 0f, expectedSpeedMps = 0f))
+        // 步行档位基线：12m/s 下限仍生效
+        assertTrue(SavePolicy.isMultipath(130f, 10_000L, 0f, expectedSpeedMps = 1.4f)) // 13 > max(12, 5.6)
+        assertFalse(SavePolicy.isMultipath(50f, 5_000L, 0f, expectedSpeedMps = 1.4f))  // 10 ≤ 12
+        // 驾车档位基线：放宽但不失控
+        assertFalse(SavePolicy.isMultipath(250f, 10_000L, 0f, expectedSpeedMps = 20f))  // 25 ≤ max(12, 80)
+        assertTrue(SavePolicy.isMultipath(850f, 10_000L, 0f, expectedSpeedMps = 20f))   // 85 > 80
+    }
 }

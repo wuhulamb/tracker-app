@@ -128,7 +128,9 @@ class MotionProfileTest {
         val t = MotionProfile.Tracker()
         repeat(20) { t.onFix(null, 0, 83f) }
         assertEquals(Level.HIGH_SPEED, t.level)
+        assertEquals(83f, t.speedMps, 0.01f)
         t.reset()
         assertEquals(Level.STATIC, t.level)
+        assertEquals(0f, t.speedMps, 0.01f)
     }
 }

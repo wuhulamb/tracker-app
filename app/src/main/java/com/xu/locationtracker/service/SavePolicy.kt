@@ -27,14 +27,24 @@ object SavePolicy {
      *
      * 仅由调用方对 GPS fix 启用；被丢弃的点不保存、也不更新 lastSaved/状态机。
      * 只判断短间隔（0.5s~15s）——长间隔（含 5min 心跳）不做判定，避免"跳过毛刺后的弦长"误杀正常点。
+     *
+     * 无报告速度时（冷启动/恢复首 fix/部分芯片）不再用固定 12m/s：改用**当前运动档位的
+     * 平滑速度** `expectedSpeedMps` 推期望上限（下限仍 12m/s），使高速（高铁 83m/s）不被误杀。
      */
-    fun isMultipath(distM: Float, dtMs: Long, spd: Float, minDtMs: Long = 500, maxDtMs: Long = 15_000): Boolean {
+    fun isMultipath(
+        distM: Float,
+        dtMs: Long,
+        spd: Float,
+        expectedSpeedMps: Float = 0f,
+        minDtMs: Long = 500,
+        maxDtMs: Long = 15_000,
+    ): Boolean {
         if (dtMs < minDtMs || dtMs > maxDtMs) return false
         val vEst = distM / (dtMs / 1000f) // 由位移推算的平均速度 m/s
         return if (spd > 0.5f) {
             vEst / spd > 4f // 位置速度比报告速度高 4 倍以上
         } else {
-            vEst > 12f // 无可靠速度（静止/慢速上下文）时，绝对位移速度超过 12m/s 视为毛刺
+            vEst > maxOf(12f, 4f * expectedSpeedMps) // 无可靠速度：按档位速度放宽上限（下限 12m/s）
         }
     }
 }
