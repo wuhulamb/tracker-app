@@ -13,6 +13,9 @@ object TrackerState {
     /** 是否处于静止降频 */
     val isStatic = MutableStateFlow(false)
 
+    /** 当前运动档位文案（静止/步行/骑行/驾车/高速）；服务写、UI 读；空串表示尚未测速 */
+    val motionLabel = MutableStateFlow("")
+
     /** 当天已记录的点（仅今日实时流，不受回放影响） */
     val points = MutableStateFlow<List<TrackPoint>>(emptyList())
 

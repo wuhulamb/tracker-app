@@ -38,11 +38,6 @@ object Prefs {
         get() = sp.getInt(KEY_ACC, 50)
         set(v) = sp.edit().putInt(KEY_ACC, v).apply()
 
-    /** 常规定位间隔（秒） */
-    var fastIntervalSec: Int
-        get() = sp.getInt(KEY_FAST_INT, 10)
-        set(v) = sp.edit().putInt(KEY_FAST_INT, v).apply()
-
     /** 保存触发：与上一个点位移达到该值(米)就记录 */
     var minDistM: Int
         get() = sp.getInt(KEY_MIN_DIST, 10)
@@ -82,7 +77,6 @@ object Prefs {
 
     // ---------- 派生便捷属性 ----------
 
-    val fastIntervalMs: Long get() = fastIntervalSec * 1000L
     val staticIntervalMs: Long get() = staticIntervalSec * 1000L
     val staticAfterMs: Long get() = staticAfterMin * 60_000L
     val keepAliveMs: Long get() = keepAliveMin * 60_000L
@@ -94,7 +88,6 @@ object Prefs {
     private const val KEY_MANUAL_REC = "manual_recording"
     private const val KEY_AUTO_STOP_DAY = "auto_stopped_for_day"
     private const val KEY_ACC = "filter_accuracy"
-    private const val KEY_FAST_INT = "fast_interval"
     private const val KEY_MIN_DIST = "min_dist"
     private const val KEY_STATIC_AFTER = "static_after"
     private const val KEY_STATIC_INT = "static_interval"

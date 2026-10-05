@@ -24,6 +24,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val isRecording = TrackerState.isRecording
     val isStatic = TrackerState.isStatic
+    val motionLabel = TrackerState.motionLabel
     val points = TrackerState.points
     val historyPoints = TrackerState.historyPoints
     val viewDay = TrackerState.viewDay

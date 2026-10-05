@@ -218,6 +218,7 @@ class TrackingService : Service() {
         val diffDist = if (hasPrevFix) geoDistM(prevFixLat to prevFixLon, loc.latitude to loc.longitude) else null
         val diffDt = if (hasPrevFix) now - prevFixT else 0L
         motion.onFix(diffDist, diffDt, if (loc.hasSpeed()) loc.speed else null)
+        TrackerState.motionLabel.value = motion.level.label
         hasPrevFix = true
         prevFixLat = loc.latitude
         prevFixLon = loc.longitude
@@ -384,6 +385,7 @@ class TrackingService : Service() {
         TrackerState.isStatic.value = false
         dayLoaded = false
         motion.reset()
+        TrackerState.motionLabel.value = ""
         appliedIntervalMs = 0L
         hasPrevFix = false
         drainSaveQueue()
@@ -402,6 +404,7 @@ class TrackingService : Service() {
             TrackerState.isStatic.value = false
             dayLoaded = false
             motion.reset()
+            TrackerState.motionLabel.value = ""
             appliedIntervalMs = 0L
             hasPrevFix = false
             drainSaveQueue()
@@ -419,8 +422,8 @@ class TrackingService : Service() {
         val (dist, dur, count) = trackStats(TrackerState.points.value)
         val status = when {
             !TrackerState.isRecording.value -> "已停止"
-            TrackerState.isStatic.value -> "记录中 · 静止省电"
-            else -> "记录中 · 行动中"
+            TrackerState.isStatic.value -> "记录中 · 静止"
+            else -> "记录中 · " + TrackerState.motionLabel.value.ifBlank { "行动中" }
         }
         val text = buildString {
             append(status).append(" · ")

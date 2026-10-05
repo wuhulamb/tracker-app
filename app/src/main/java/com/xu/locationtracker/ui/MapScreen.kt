@@ -116,6 +116,7 @@ fun MapScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
     val lastFixLoc by vm.lastFixLoc.collectAsStateWithLifecycle()
     val isRecording by vm.isRecording.collectAsStateWithLifecycle()
     val isStatic by vm.isStatic.collectAsStateWithLifecycle()
+    val motionLabel by vm.motionLabel.collectAsStateWithLifecycle()
 
     val holder = remember { MapHolder() }
     var mapReady by remember { mutableStateOf(false) }
@@ -265,6 +266,7 @@ fun MapScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                 StatusCard(
                     isRecording = isRecording,
                     isStatic = isStatic,
+                    motionLabel = motionLabel,
                     distM = distM,
                     durMs = durMs,
                     count = count,
@@ -411,6 +413,7 @@ private fun CompassButton(map: MapLibreMap?, modifier: Modifier = Modifier) {
 private fun StatusCard(
     isRecording: Boolean,
     isStatic: Boolean,
+    motionLabel: String,
     distM: Double,
     durMs: Long,
     count: Int,
@@ -418,8 +421,8 @@ private fun StatusCard(
 ) {
     val statusText = when {
         !isRecording -> "未在记录"
-        isStatic -> "记录中 · 静止省电"
-        else -> "记录中 · 行动中"
+        isStatic -> "记录中 · 静止"
+        else -> "记录中 · " + motionLabel.ifBlank { "行动中" }
     }
     val color = when {
         !isRecording -> MaterialTheme.colorScheme.onSurfaceVariant
