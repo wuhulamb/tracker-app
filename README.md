@@ -1,8 +1,14 @@
 # 行程轨迹 (LocationTracker)
 
-一个为国内环境设计的**离线轨迹记录 Android 应用**：无 GMS 依赖、原生 `LocationManager` 双源定位、高德瓦片底图（GCJ-02 坐标纠偏）、按日 JSONL 存储、自带历史回放与 GPX/CSV 导出。
+一个为国内环境设计的**轨迹记录 Android 应用**：无 GMS 依赖、原生 `LocationManager` 双源定位、在线 OSM 矢量底图（OpenFreeMap，可选 4 种风格）、按日 JSONL 存储、自带历史回放与 GPX/CSV 导出。
 
 ---
+
+## 下载安装
+
+到 [Releases](https://github.com/wuhulamb/location-app/releases) 下载最新 `location-tracker-<版本>.apk`，在手机上直接安装（首次需允许“安装未知应用”）。
+
+若之前装过 debug 版，需先卸载（签名不同无法覆盖安装）。
 
 ## 项目结构
 
@@ -36,6 +42,8 @@ app/src/main/java/com/xu/locationtracker/
 
 ## 构建与安装
 
+本地调试构建（debug 签名）：
+
 ```bash
 # 需要 Android SDK（local.properties 中 sdk.dir 指向本机 SDK）
 ./gradlew :app:assembleDebug
@@ -43,6 +51,42 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 # 运行单元测试（纯逻辑，无需设备）
 ./gradlew :app:testDebugUnitTest
+```
+
+发布签名构建（需 `keystore.properties`，见下）：
+
+```bash
+./gradlew :app:assembleRelease
+# 产物：app/build/outputs/apk/release/app-release.apk
+```
+
+### 发布流程（GitHub Release）
+
+推送到 `main` 的提交会在打 tag 后自动发布：
+
+```bash
+# 1) 改 app/build.gradle.kts 的 versionName/versionCode
+# 2) 打 tag 并推送，Actions 自动构建签名 APK 并创建 Release
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+自动化由 `.github/workflows/release.yml` 完成，首次使用需在
+仓库 `Settings → Secrets and variables → Actions` 配置 4 个 secret：
+
+| Secret | 值 |
+|---|---|
+| `KEYSTORE_BASE64` | `base64 -w0 keystore/release.jks` 的输出 |
+| `STORE_PASSWORD` | keystore 密码 |
+| `KEY_ALIAS` | `locationtracker` |
+| `KEY_PASSWORD` | keystore 密码 |
+
+本地签名配置 `keystore.properties`（**不入库**，格式）：
+
+```properties
+storeFile=keystore/release.jks
+storePassword=***
+keyAlias=locationtracker
+keyPassword=***
 ```
 
 运行测试输出示例：
