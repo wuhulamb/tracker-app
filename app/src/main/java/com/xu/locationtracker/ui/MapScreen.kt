@@ -24,7 +24,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -304,7 +303,7 @@ fun MapScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                     if (Prefs.mode == Prefs.MODE_MANUAL) {
                         // 手动模式：开始记录 / 停止记录（无暂停）
                         if (isRecording) {
-                            OutlinedButton(onClick = {
+                            Button(onClick = {
                                 manualRec.value = false
                                 vm.stopManual()
                             }) { Text("停止记录") }

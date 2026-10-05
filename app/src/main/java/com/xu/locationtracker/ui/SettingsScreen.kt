@@ -24,7 +24,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -117,7 +116,7 @@ fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                         toast(context, if (uri != null) "GPX 已导出到 下载/行程轨迹" else "没有可导出的数据")
                     }
                 }) { Text("导出 GPX") }
-                OutlinedButton(onClick = {
+                Button(onClick = {
                     vm.exportCsv { uri ->
                         toast(context, if (uri != null) "CSV 已导出到 下载/行程轨迹" else "没有可导出的数据")
                     }
@@ -129,7 +128,7 @@ fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline,
             )
-            OutlinedButton(
+            Button(
                 onClick = { confirmDelete = true },
                 modifier = Modifier.padding(top = 4.dp),
             ) { Text("清空全部轨迹数据") }
@@ -160,7 +159,7 @@ fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                 }) { Text("加入电池优化白名单") }
             }
             Spacer(Modifier.height(4.dp))
-            OutlinedButton(onClick = {
+            Button(onClick = {
                 runCatching {
                     context.startActivity(
                         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
