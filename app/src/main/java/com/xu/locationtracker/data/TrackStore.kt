@@ -45,17 +45,10 @@ class TrackStore(val dir: File) {
         dir.listFiles { f -> f.isFile && f.extension == "jsonl" }?.map { it.nameWithoutExtension }?.sortedDescending() ?: emptyList()
     }.getOrDefault(emptyList())
 
-    fun existingDay(day: String): Boolean = fileOf(day).exists()
-
     /** 关闭并清空所有写句柄（Service 销毁时调用） */
     fun closeAll() {
         writers.values.forEach { runCatching { it.close() } }
         writers.clear()
-    }
-
-    /** 删除某天文件 */
-    suspend fun deleteDay(day: String) = withContext(Dispatchers.IO) {
-        fileOf(day).delete()
     }
 
     /** 删除全部数据 */

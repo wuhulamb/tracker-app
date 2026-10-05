@@ -23,18 +23,6 @@ object MapStyles {
     fun mapsFile(ctx: Context, name: String): File =
         File(File(ctx.getExternalFilesDir(null), MAPS_SUBDIR), name)
 
-    fun isOffline(ctx: Context): Boolean =
-        (mapsFile(ctx, MAPS_FILE_WGS).exists() && mapsFile(ctx, MAPS_FILE_WGS).length() > 0) ||
-            (mapsFile(ctx, MAPS_FILE_GCJ).exists() && mapsFile(ctx, MAPS_FILE_GCJ).length() > 0)
-
-    fun sizeMb(ctx: Context): Long {
-        val w = mapsFile(ctx, MAPS_FILE_WGS)
-        val g = mapsFile(ctx, MAPS_FILE_GCJ)
-        val wBytes = if (w.exists()) w.length() else 0L
-        val gBytes = if (g.exists()) g.length() else 0L
-        return (wBytes + gBytes) / 1_000_000
-    }
-
     /** 返回可直接 setStyle 的样式 URL + 底图坐标系标志；同时把样式写入 filesDir/style-active.json */
     fun styleSpec(ctx: Context): StyleSpec {
         // 1) OSM 矢量离线包（WGS-84）优先

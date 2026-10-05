@@ -52,7 +52,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xu.locationtracker.data.Prefs
 import com.xu.locationtracker.data.ReplayModel
-import com.xu.locationtracker.data.TrackPoint
 import com.xu.locationtracker.data.dayKeyOf
 import com.xu.locationtracker.util.Gcj
 import com.xu.locationtracker.util.fmtDur
