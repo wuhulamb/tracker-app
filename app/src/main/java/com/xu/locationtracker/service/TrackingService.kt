@@ -215,9 +215,18 @@ class TrackingService : Service() {
      */
     /** 用已通过过滤的 GPS fix 更新运动档位（速度缺失时用与上一个已接受 fix 的位置差分） */
     private fun updateMotion(loc: Location, now: Long) {
+        val before = motion.level
         val diffDist = if (hasPrevFix) geoDistM(prevFixLat to prevFixLon, loc.latitude to loc.longitude) else null
         val diffDt = if (hasPrevFix) now - prevFixT else 0L
         motion.onFix(diffDist, diffDt, if (loc.hasSpeed()) loc.speed else null)
+        if (motion.level != before) {
+            Log.d(
+                TAG,
+                "motion level: $before -> ${motion.level} " +
+                    "(speed=${String.format(Locale.US, "%.1f", motion.speedMps)}m/s, " +
+                    "interval=${motionIntervalMs() / 1000}s)"
+            )
+        }
         TrackerState.motionLabel.value = motion.level.label
         hasPrevFix = true
         prevFixLat = loc.latitude
