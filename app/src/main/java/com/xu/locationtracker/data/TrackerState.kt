@@ -24,4 +24,7 @@ object TrackerState {
 
     /** 最近一次从系统收到定位回调的时间戳（0 表示尚未收到） */
     val lastFixAt = MutableStateFlow(0L)
+
+    /** 最近一次可用 fix 的 WGS-84 坐标（通过精度闸门，含网络兜底）；null = 尚未收到 */
+    val lastFixLoc = MutableStateFlow<Pair<Double, Double>?>(null)
 }

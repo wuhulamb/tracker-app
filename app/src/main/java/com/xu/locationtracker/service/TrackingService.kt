@@ -224,6 +224,8 @@ class TrackingService : Service() {
         }
         // 精度可达标的 GPS fix 才计入"最近可用 GPS"（静默降频判定依据）
         if (isGps) lastGoodGpsAt = now
+        // 记录最新可用 fix 坐标（WGS-84，供 UI"回到当前位置"使用）
+        TrackerState.lastFixLoc.value = loc.latitude to loc.longitude
 
         // 跨天切换
         val day = dayKeyOf(now)

@@ -107,12 +107,17 @@ fun MapScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
     val historyPoints by vm.historyPoints.collectAsStateWithLifecycle()
     val viewDay by vm.viewDay.collectAsStateWithLifecycle()
     val lastFixAt by vm.lastFixAt.collectAsStateWithLifecycle()
+    val lastFixLoc by vm.lastFixLoc.collectAsStateWithLifecycle()
     val isRecording by vm.isRecording.collectAsStateWithLifecycle()
     val isStatic by vm.isStatic.collectAsStateWithLifecycle()
 
     val holder = remember { MapHolder() }
     var mapReady by remember { mutableStateOf(false) }
-    val styleUrl = remember { MapStyles.styleUrl(context) }
+    val styleSpec = remember { MapStyles.styleSpec(context) }
+
+    // 底图坐标转换：高德底图（GCJ-02）需 WGS→GCJ 纠偏；OSM 底图（WGS-84）直接使用
+    fun toBase(lat: Double, lon: Double): Pair<Double, Double> =
+        if (styleSpec.gcj) Gcj.wgsToGcj(lat, lon) else lat to lon
 
     val manualRec = remember { mutableStateOf(Prefs.manualRecording) }
 
@@ -122,8 +127,8 @@ fun MapScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
     var elapsed by remember(viewDay) { mutableDoubleStateOf(0.0) }
     var simTimeMs by remember(viewDay) { mutableLongStateOf(0L) }
 
-    val replayGcj = remember(viewDay, historyPoints) {
-        if (viewDay == null) emptyList() else historyPoints.map { Gcj.wgsToGcj(it.lat, it.lon) }
+    val replayGcj = remember(viewDay, historyPoints, styleSpec.gcj) {
+        if (viewDay == null) emptyList() else historyPoints.map { toBase(it.lat, it.lon) }
     }
     val replayModel = remember(viewDay, replayGcj) {
         if (viewDay == null || replayGcj.size < 2) null
@@ -136,7 +141,7 @@ fun MapScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize()) {
         MapLibreView(
             modifier = Modifier.fillMaxSize(),
-            styleUrl = styleUrl,
+            styleUrl = styleSpec.url,
             onReady = { map, style ->
                 holder.map = map
                 holder.style = style
@@ -149,7 +154,7 @@ fun MapScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
             if (viewDay != null) return@LaunchedEffect
             val style = holder.style
             if (!mapReady || style == null) return@LaunchedEffect
-            val gcj = points.map { p -> Gcj.wgsToGcj(p.lat, p.lon) }
+            val gcj = points.map { p -> toBase(p.lat, p.lon) }
 
             if (gcj.isEmpty()) {
                 style.getSourceAs<GeoJsonSource>(SOURCE_TRACK)?.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
@@ -327,11 +332,16 @@ fun MapScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                     FilledIconButton(
                         modifier = Modifier.align(Alignment.CenterEnd),
                         onClick = {
-                            val pts = displayPoints.map { Gcj.wgsToGcj(it.lat, it.lon) }
-                            if (pts.isNotEmpty()) {
-                                val last = pts.last()
+                            // 定位到最新可用 fix（WGS-84 → 底图坐标，自动适配 GCJ/WGS 底图）
+                            var target: Pair<Double, Double>? = lastFixLoc
+                            if (target == null && displayPoints.isNotEmpty()) {
+                                target = toBase(displayPoints.last().lat, displayPoints.last().lon)
+                            }
+                            if (target != null) {
                                 holder.map?.animateCamera(
-                                    CameraUpdateFactory.newLatLngZoom(LatLng(last.first, last.second), 16.0), 500
+                                    CameraUpdateFactory.newLatLngZoom(
+                                        LatLng(target.first, target.second), 16.0
+                                    ), 500
                                 )
                             }
                         },

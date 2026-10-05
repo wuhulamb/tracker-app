@@ -19,6 +19,22 @@ class LocationApp : Application() {
         AppGraph.store = TrackStore(File(getExternalFilesDir(null), "tracks"))
         MapLibre.getInstance(this)
         createTrackingChannel()
+        copyAssetsToFiles()
+    }
+
+    /** 启动时把内置资源（离线字体等）复制到 filesDir，供 MapLibre glyphs 以 file:// 加载 */
+    private fun copyAssetsToFiles() {
+        runCatching {
+            val target = File(filesDir, "fonts/Noto Sans Regular")
+            if (target.exists()) return
+            val dir = assets.list("fonts/Noto Sans Regular") ?: return
+            target.mkdirs()
+            dir.forEach { name ->
+                assets.open("fonts/Noto Sans Regular/$name").use { input ->
+                    File(target, name).outputStream().use { input.copyTo(it) }
+                }
+            }
+        }
     }
 
     private fun createTrackingChannel() {

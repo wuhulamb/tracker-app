@@ -29,6 +29,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val historyPoints = TrackerState.historyPoints
     val viewDay = TrackerState.viewDay
     val lastFixAt = TrackerState.lastFixAt
+    val lastFixLoc = TrackerState.lastFixLoc
 
     val history: StateFlow<List<DaySummary>> = kotlinx.coroutines.flow.flow {
         while (true) {
