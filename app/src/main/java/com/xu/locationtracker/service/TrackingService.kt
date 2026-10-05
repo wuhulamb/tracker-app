@@ -211,8 +211,8 @@ class TrackingService : Service() {
 
         // GPS 优先：GPS 仍在正常工作中时忽略网络 fix。
         // 网络定位（WiFi AP 缓存坐标）误差可达数百米且滞后，混存会把轨迹拉回成锯齿；
-        // 仅当 GPS 连续失效超过 GPS_FALLBACK_MS 后，网络 fix 才作为兜底保存。
-        if (!isGps && !SavePolicy.isGpsStale(now, lastGpsFixAt, SavePolicy.GPS_FALLBACK_MS)) {
+        // 仅当 GPS 连续失效超过 Prefs.gpsSilentAfterMs 后，网络 fix 才作为兜底保存。
+        if (!isGps && !SavePolicy.isGpsStale(now, lastGpsFixAt, Prefs.gpsSilentAfterMs)) {
             updateNotification(throttle = true)
             return
         }
@@ -288,7 +288,7 @@ class TrackingService : Service() {
     }
 
     /**
-     * 静止状态监测：距最后一次"可用 GPS fix"超过 GPS_FALLBACK_MS（3 分钟）
+     * 静止状态监测：距最后一次"可用 GPS fix"超过 Prefs.gpsSilentAfterMs
      * 且尚未进入静止时，把 GPS + 网络两个 provider 都降到 staticInterval，
      * 与位移静止共用同一个静止状态（退出同样只需移动）。
      * 注：必须在主线程调用（requestLocationUpdates 需要 Looper）。
@@ -298,11 +298,11 @@ class TrackingService : Service() {
         Log.d(
             TAG,
             "blackout: staticMode=$staticMode rec=${TrackerState.isRecording.value} " +
-                "stale=${SavePolicy.isGpsStale(now, lastGoodGpsAt, SavePolicy.GPS_FALLBACK_MS)} " +
+                "stale=${SavePolicy.isGpsStale(now, lastGoodGpsAt, Prefs.gpsSilentAfterMs)} " +
                 "ageSec=${(now - lastGoodGpsAt) / 1000}"
         )
         if (staticMode || !TrackerState.isRecording.value) return
-        if (SavePolicy.isGpsStale(now, lastGoodGpsAt, SavePolicy.GPS_FALLBACK_MS)) {
+        if (SavePolicy.isGpsStale(now, lastGoodGpsAt, Prefs.gpsSilentAfterMs)) {
             Log.d(TAG, "blackout -> static (GPS silent)")
             staticMode = true
             TrackerState.isStatic.value = true

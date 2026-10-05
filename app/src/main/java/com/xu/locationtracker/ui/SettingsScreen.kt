@@ -54,6 +54,7 @@ fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
     var minDist by remember { mutableIntStateOf(Prefs.minDistM) }
     var staticAfter by remember { mutableIntStateOf(Prefs.staticAfterMin) }
     var staticInt by remember { mutableIntStateOf(Prefs.staticIntervalSec) }
+    var gpsSilent by remember { mutableIntStateOf(Prefs.gpsSilentAfterMin) }
     var keepAlive by remember { mutableIntStateOf(Prefs.keepAliveMin) }
     var showAdvanced by remember { mutableStateOf(false) }
 
@@ -118,6 +119,9 @@ fun SettingsScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
                 }
                 ParamRow("静止采样间隔", "秒", staticInt, 10..600) {
                     staticInt = it; Prefs.staticIntervalSec = it; vm.applyParams()
+                }
+                ParamRow("GPS 失效进静止", "分钟", gpsSilent, 1..60) {
+                    gpsSilent = it; Prefs.gpsSilentAfterMin = it; vm.applyParams()
                 }
                 ParamRow("在位心跳", "分钟", keepAlive, 0..120) {
                     keepAlive = it; Prefs.keepAliveMin = it; vm.applyParams()

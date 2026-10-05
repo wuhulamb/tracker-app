@@ -6,24 +6,26 @@ import org.junit.Test
 
 class SavePolicyTest {
 
+    private val FALLBACK = 120_000L // 120s，显式测试阈值
+
     @Test
     fun `GPS 时效判定_未失效时网络fix被忽略`() {
         val now = 1_000_000L
         // GPS 刚刚更新过
-        assertFalse(SavePolicy.isGpsStale(now, now - 60_000, SavePolicy.GPS_FALLBACK_MS))
+        assertFalse(SavePolicy.isGpsStale(now, now - 60_000, FALLBACK))
         // 差 1ms 到阈值：仍未失效
-        assertFalse(SavePolicy.isGpsStale(now, now - SavePolicy.GPS_FALLBACK_MS + 1, SavePolicy.GPS_FALLBACK_MS))
+        assertFalse(SavePolicy.isGpsStale(now, now - FALLBACK + 1, FALLBACK))
     }
 
     @Test
     fun `GPS 时效判定_超过阈值后网络兜底可用`() {
         val now = 1_000_000L
         // 恰好等于阈值：视为失效，网络兜底可用
-        assertTrue(SavePolicy.isGpsStale(now, now - SavePolicy.GPS_FALLBACK_MS, SavePolicy.GPS_FALLBACK_MS))
+        assertTrue(SavePolicy.isGpsStale(now, now - FALLBACK, FALLBACK))
         // 超过阈值
-        assertTrue(SavePolicy.isGpsStale(now, now - SavePolicy.GPS_FALLBACK_MS - 100, SavePolicy.GPS_FALLBACK_MS))
+        assertTrue(SavePolicy.isGpsStale(now, now - FALLBACK - 100, FALLBACK))
         // 从未收到 GPS：直接兜底
-        assertTrue(SavePolicy.isGpsStale(now, 0, SavePolicy.GPS_FALLBACK_MS))
+        assertTrue(SavePolicy.isGpsStale(now, 0, FALLBACK))
     }
 
     @Test

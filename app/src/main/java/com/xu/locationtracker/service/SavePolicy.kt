@@ -6,9 +6,6 @@ package com.xu.locationtracker.service
  */
 object SavePolicy {
 
-    /** 网络定位兜底等待：GPS 连续失效超过该时长，才允许保存网络 fix */
-    const val GPS_FALLBACK_MS = 3 * 60_000L
-
     /** GPS 是否已失效（超过 fallbackAfterMs 无 GPS fix）。lastGpsFixMs=0 表示从未收到 GPS */
     fun isGpsStale(nowMs: Long, lastGpsFixMs: Long, fallbackAfterMs: Long): Boolean =
         nowMs - lastGpsFixMs >= fallbackAfterMs

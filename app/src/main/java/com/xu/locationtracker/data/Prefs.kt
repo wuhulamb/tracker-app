@@ -58,6 +58,11 @@ object Prefs {
         get() = sp.getInt(KEY_STATIC_INT, 60)
         set(v) = sp.edit().putInt(KEY_STATIC_INT, v).apply()
 
+    /** GPS 连续失效该分钟数后进入静止（无信号进静止的阈值） */
+    var gpsSilentAfterMin: Int
+        get() = sp.getInt(KEY_GPS_SILENT, 3)
+        set(v) = sp.edit().putInt(KEY_GPS_SILENT, v).apply()
+
     /** 静止期间"在位心跳"：每隔该分钟数记一个点（表明仍在原地），0=不记 */
     var keepAliveMin: Int
         get() = sp.getInt(KEY_KEEPALIVE, 5)
@@ -69,6 +74,7 @@ object Prefs {
     val staticIntervalMs: Long get() = staticIntervalSec * 1000L
     val staticAfterMs: Long get() = staticAfterMin * 60_000L
     val keepAliveMs: Long get() = keepAliveMin * 60_000L
+    val gpsSilentAfterMs: Long get() = gpsSilentAfterMin * 60_000L
     val minDistF: Float get() = minDistM.toFloat()
     val accFM: Float get() = filterAccuracyM.toFloat()
 
@@ -80,5 +86,6 @@ object Prefs {
     private const val KEY_MIN_DIST = "min_dist"
     private const val KEY_STATIC_AFTER = "static_after"
     private const val KEY_STATIC_INT = "static_interval"
+    private const val KEY_GPS_SILENT = "gps_silent_after"
     private const val KEY_KEEPALIVE = "keepalive"
 }
